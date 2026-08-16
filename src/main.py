@@ -6,6 +6,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Self, TypeVar, cast, overload
+from urllib.parse import urlparse
 
 import keyring
 import m3u8
@@ -38,6 +39,14 @@ def is_library_track(track_id: str) -> bool:
     return track_id.startswith("i.")
 
 
+def empty_dict() -> dict[str, JSON]:
+    return {}
+
+
+def empty_list() -> list[JSON]:
+    return []
+
+
 @dataclass
 class AppleMusicCredentials:
     user_token: str
@@ -57,30 +66,34 @@ class PlaybackSong:
 
 @dataclass
 class PlaybackData:
-    raw: dict[str, JSON]
+    songs: list[PlaybackSong]
+    failure_message: str | None = None
 
     @property
     def failed(self) -> bool:
         return self.failure_message is not None
 
-    @property
-    def failure_message(self) -> str | None:
-        if "dialog" in self.raw and isinstance(self.raw["dialog"], dict) and "message" in self.raw["dialog"]:
-            message = cast(str, self.raw["dialog"]["message"])
-        else:
-            message = self.raw.get("customerMessage") or self.raw.get("failureType")
-        return str(message) if message else None
 
-    @property
-    def songs(self) -> list[PlaybackSong]:
-        return [
+class PlaybackParser:
+    @staticmethod
+    def parse(raw: dict[str, JSON]) -> PlaybackData:
+        message = (
+            Traverse(raw)["dialog"]["message"]("")
+            or Traverse(raw)["customerMessage"]("")
+            or Traverse(raw)["failureType"]("")
+        )
+
+        songs = [
             PlaybackSong(
                 assets=[
-                    PlaybackAsset(flavor=asset.get("flavor"), url=asset.get("URL")) for asset in song.get("assets", [])
+                    PlaybackAsset(flavor=Traverse(asset)["flavor"](""), url=Traverse(asset)["URL"](""))
+                    for asset in Traverse(song)["assets"](empty_list())
                 ]
             )
-            for song in cast(list[dict[str, list[dict[str, str]]]], self.raw.get("songList", []))
+            for song in Traverse(raw)["songList"](empty_list())
         ]
+
+        return PlaybackData(songs, failure_message=message or None)
 
 
 @dataclass
@@ -162,10 +175,10 @@ class AppleMusicSession:
             "Referer": APPLE_MUSIC_URL,
         }
 
-    def post(self, url: str, json: Mapping[str, JSON]) -> JSON:
+    def post(self, url: str, json: Mapping[str, JSON]) -> dict[str, JSON]:
         response = self.http.post(url, headers=self.headers(), json=json)
         response.raise_for_status()
-        return cast(JSON, response.json())
+        return cast(dict[str, JSON], response.json())
 
     def get(self, url: str, params: dict[str, str] | None = None) -> JSON:
         response = self.http.get(url, headers=self.headers(), params=params)
@@ -289,7 +302,7 @@ class AppleMusicPlayback:
 
     def get_playback(self, track_id: str) -> PlaybackData:
         body = {"universalLibraryId": track_id} if is_library_track(track_id) else {"salableAdamId": track_id}
-        playback = PlaybackData(cast(dict[str, JSON], self.session.post(WEB_PLAYBACK_URL, json=body)))
+        playback = PlaybackParser.parse(self.session.post(WEB_PLAYBACK_URL, json=body))
         if playback.failed:
             print(f"Got webplayback response: {playback=}")
             raise RuntimeError(playback.failure_message)
@@ -298,22 +311,19 @@ class AppleMusicPlayback:
     def get_license(self, challenge: str, kid_b64: str, track_id: str) -> bytes:
         kid_bytes = base64.b64decode(kid_b64)
         kid_encoded = base64.b64encode(kid_bytes).decode()
-        data = cast(
-            dict[str, JSON],
-            self.session.post(
-                LICENSE_URL,
-                json={
-                    "challenge": challenge,
-                    "key-system": "com.widevine.alpha",
-                    "adamId": track_id,
-                    "isLibrary": is_library_track(track_id),
-                    "user-initiated": True,
-                    "uri": f"data:;base64,{kid_encoded}",
-                },
-            ),
+        data = self.session.post(
+            LICENSE_URL,
+            json={
+                "challenge": challenge,
+                "key-system": "com.widevine.alpha",
+                "adamId": track_id,
+                "isLibrary": is_library_track(track_id),
+                "user-initiated": True,
+                "uri": f"data:;base64,{kid_encoded}",
+            },
         )
 
-        status = cast(int | str, data.get("status"))
+        status = data.get("status")
         if status != 0:
             error_messages = {
                 -1001: "Invalid PSSH.",
@@ -430,7 +440,6 @@ class AppleMusicDownloader:
         self.drm.set_service_certificate(self.amp.get_service_certificate())
 
     def prepare_track(self, track_id: str) -> tuple[str, str]:
-        print(f"Preparing track {track_id} for playback")
         playback = self.amp.get_playback(track_id)
         playlist_url = HLSParser.extract_playlist_url(playback)
         media_url = HLSParser.extract_media_url(playlist_url)
@@ -481,102 +490,111 @@ class AppleMusicDownloader:
         mp4.save()  # pyright: ignore[reportUnknownMemberType]
 
 
+class Traverse:
+    """
+    Safely traverse nested dicts and lists.
+
+    Initialize with a JSON-like object, then chain `[]` access
+    to walk the structure. Call the instance to finalize and
+    retrieve a value.
+
+    Each key can be:
+        - str: dict key lookup; when applied to a list, extracts
+            that key from each item (fan-out)
+        - int: list index
+
+    Example:
+        count: int = Traverse(obj)["data"][0]["attributes"]["trackCount"](0)
+
+    Call parameters:
+        default:
+            Value returned if the path does not resolve, or if the
+            resolved value's type does not match the type of default.
+
+    Notes:
+        - Missing keys or out-of-range indices are ignored.
+        - Empty results (`None`, `{}`) are filtered out.
+    """
+
+    def __init__(self, obj: JSON) -> None:
+        self.items: list[JSON] = [obj]
+
+    @overload
+    def __call__(self) -> JSON: ...
+    @overload
+    def __call__(self, default: _T) -> _T: ...
+    def __call__(self, default: _T | NO_DEFAULT = NO_DEFAULT) -> JSON | _T:
+        results: list[JSON] = [item for item in self.items if item not in (None, {})]
+        return_default = default if default is not NO_DEFAULT else None
+        if results and (default is NO_DEFAULT or isinstance(results[0], type(default))):
+            return results[0]
+        return return_default
+
+    def __getitem__(self, key: str | int) -> Self:
+        self.items = [x for item in self.items for x in self.collect(item, key)]
+        return self
+
+    def collect(self, node: JSON, key: str | int) -> list[JSON]:
+        if isinstance(key, str):
+            if isinstance(node, list):
+                return [x for item in node for x in self.collect(item, key)]
+            if isinstance(node, dict) and key in node:
+                return [node[key]]
+        elif isinstance(node, list):
+            try:
+                return [node[key]]
+            except IndexError:
+                pass
+        return []
+
+
 class AppleMusicModelParser:
-    class Traverse:
-        """
-        Safely traverse nested dicts and lists.
-
-        Initialize with a JSON-like object, then chain `[]` access
-        to walk the structure. Call the instance to finalize and
-        retrieve a value.
-
-        Each key can be:
-            - str: dict key lookup; when applied to a list, extracts
-                that key from each item (fan-out)
-            - int: list index
-
-        Example:
-            count: int = Traverse(obj)["data"][0]["attributes"]["trackCount"](0)
-
-        Call parameters:
-            default:
-                Value returned if the path does not resolve, or if the
-                resolved value's type does not match the type of default.
-
-        Notes:
-            - Missing keys or out-of-range indices are ignored.
-            - Empty results (`None`, `{}`) are filtered out.
-        """
-
-        def __init__(self, obj: JSON) -> None:
-            self.items: list[JSON] = [obj]
-
-        @overload
-        def __call__(self) -> JSON: ...
-        @overload
-        def __call__(self, default: _T) -> _T: ...
-        def __call__(self, default: JSON | NO_DEFAULT = NO_DEFAULT) -> JSON:
-            results: list[JSON] = [item for item in self.items if item not in (None, {})]
-            return_default = default if default is not NO_DEFAULT else None
-            if results and (default is NO_DEFAULT or isinstance(results[0], type(default))):
-                return results[0]
-            return return_default
-
-        def __getitem__(self, key: str | int) -> Self:
-            self.items = [x for item in self.items for x in self.collect(item, key)]
-            return self
-
-        def collect(self, node: JSON, key: str | int) -> list[JSON]:
-            if isinstance(key, str):
-                if isinstance(node, list):
-                    return [x for item in node for x in self.collect(item, key)]
-                if isinstance(node, dict) and key in node:
-                    return [node[key]]
-            elif isinstance(node, list):
-                try:
-                    return [node[key]]
-                except IndexError:
-                    pass
-            return []
-
     @classmethod
     def artwork_url(cls, url: str) -> str:
         return url.replace("{w}", "9999").replace("{h}", "9999").replace("{c}", "bb")
 
     @classmethod
     def track(cls, track_data: JSON, album: Album | None = None) -> Track:
-        data = cls.Traverse(track_data)["data"][0](track_data)
-        cat_data = cls.Traverse(data)["relationships"]["catalog"]["data"][0](cast(dict[str, JSON], {}))
+        data = Traverse(track_data)["data"][0](track_data)
+        cat_data = Traverse(data)["relationships"]["catalog"]["data"][0](empty_dict())
         cat_track = cls.track(cat_data) if cat_data else Track()
-        attrs = cls.Traverse(data)["attributes"](cast(dict[str, JSON], {}))
-        play_params = cls.Traverse(attrs)["playParams"](cast(dict[str, JSON], {}))
-        track_id = cls.Traverse(data)["id"]("") or cls.Traverse(play_params)["id"]("")
+        attrs = Traverse(data)["attributes"](empty_dict())
+        play_params = Traverse(attrs)["playParams"](empty_dict())
+        track_id = Traverse(data)["id"]("") or Traverse(play_params)["id"]("")
         return Track(
             library_id=track_id if is_library_track(track_id) else "",
-            catalog_id=(cat_track.catalog_id or cls.Traverse(play_params)["catalogId"]("")) if is_library_track(track_id) else track_id,
-            track_name=cast(str, attrs.get("name") or cat_track.track_name or "Unknown Track"),
-            artist_name=cat_track.artist_name or cls.Traverse(attrs)["artistName"]("") or (album.artist_name if album else "Unknown Artist"),
-            album_name=cat_track.album_name or cls.Traverse(attrs)["albumName"]("") or (album.album_name if album else "Unknown Album"),
-            artwork_url=cat_track.artwork_url or cls.artwork_url(cls.Traverse(attrs)["artwork"]["url"]("")) or (album.artwork_url if album else ""),
-            release_date=cat_track.release_date or cls.Traverse(attrs)["releaseDate"]("") or (album.release_date if album else ""),
-            track_number=cls.Traverse(attrs)["trackNumber"](1),
+            catalog_id=(cat_track.catalog_id or Traverse(play_params)["catalogId"](""))
+            if is_library_track(track_id)
+            else track_id,
+            track_name=Traverse(attrs)["name"](cat_track.track_name) or "Unknown Track",
+            artist_name=cat_track.artist_name
+            or Traverse(attrs)["artistName"](album.artist_name if album else "Unknown Artist"),
+            album_name=cat_track.album_name
+            or Traverse(attrs)["albumName"](album.album_name if album else "Unknown Album"),
+            artwork_url=cat_track.artwork_url
+            or cls.artwork_url(Traverse(attrs)["artwork"]["url"](""))
+            or (album.artwork_url if album else ""),
+            release_date=cat_track.release_date or Traverse(attrs)["releaseDate"](album.release_date if album else ""),
+            track_number=Traverse(attrs)["trackNumber"](1),
         )
 
     @classmethod
     def album(cls, album_data: JSON) -> Album:
-        data = cls.Traverse(album_data)["data"][0](album_data)
-        attrs = cls.Traverse(data)["attributes"](cast(dict[str, JSON], {}))
-        album_id = cls.Traverse(data)["id"]("")
+        data = Traverse(album_data)["data"][0](album_data)
+        attrs = Traverse(data)["attributes"](empty_dict())
+        album_id = Traverse(data)["id"]("")
 
         album = Album(
             library_id=album_id if is_library_album(album_id) else "",
-            album_name=cls.Traverse(attrs)["name"]("").removesuffix(" - Single").removesuffix(" - EP"),
-            catalog_id=cls.Traverse(data)["relationships"]["catalog"]["data"][0]["id"]("") if is_library_album(album_id) else album_id,
-            artist_name=cls.Traverse(attrs)["artistName"](""),
-            artwork_url=cls.artwork_url(cls.Traverse(attrs)["artwork"]["url"]("")),
-            release_date=cls.Traverse(attrs)["releaseDate"]("0000-00-00"),
+            album_name=Traverse(attrs)["name"]("").removesuffix(" - Single").removesuffix(" - EP"),
+            catalog_id=Traverse(data)["relationships"]["catalog"]["data"][0]["id"]("")
+            if is_library_album(album_id)
+            else album_id,
+            artist_name=Traverse(attrs)["artistName"](""),
+            artwork_url=cls.artwork_url(Traverse(attrs)["artwork"]["url"]("")),
+            release_date=Traverse(attrs)["releaseDate"]("0000-00-00"),
         )
-        tracks_data = cast(list[dict[str, JSON]], cls.Traverse(data)["relationships"]["tracks"]["data"]([]))
+        tracks_data = Traverse(data)["relationships"]["tracks"]["data"](empty_list())
         album.tracks = [cls.track(t, album) for t in tracks_data]
 
         return album
@@ -679,19 +697,25 @@ class ArgParser:
 
     @staticmethod
     def apple_music_url(url: str) -> tuple[str, str]:
-        prefix = f"{APPLE_MUSIC_URL}/"
+        parsed = urlparse(url)
 
-        if not url.startswith(prefix):
-            raise ValueError("URL is not Apple Music")
+        if parsed.netloc != urlparse(APPLE_MUSIC_URL).netloc:
+            raise ValueError("URL is not an Apple Music URL")
 
-        parts = url.removeprefix(prefix).split("/")
+        parts = [p for p in parsed.path.strip("/").split("/") if p]
 
-        if len(parts) < 4:
-            raise ValueError("Could not parse Apple Music URL")
+        if len(parts) < 3:
+            raise ValueError("Could not parse Apple Music URL: path too short")
 
-        _, url_type, slug, am_id, *_ = parts
-        if url_type == "library":
-            url_type = slug
+        if parts[1] == "library":
+            if len(parts) < 4:
+                raise ValueError("Invalid Apple Music library URL")
+            url_type = parts[2]
+            am_id = parts[3]
+            return url_type, am_id
+
+        url_type = parts[1]
+        am_id = parts[-1]
 
         return url_type, am_id
 
