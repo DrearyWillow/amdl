@@ -2,9 +2,10 @@ import base64
 import os
 import re
 import subprocess
-import sys
+from argparse import ArgumentParser
 from collections.abc import Mapping
 from dataclasses import dataclass
+from pathlib import Path
 from typing import cast
 
 import keyring
@@ -25,9 +26,10 @@ KEYRING_NAME = "AppleMusicDownloader"
 type JSON = str | int | float | bool | None | list[JSON] | dict[str, JSON]
 
 # TODO:
-# arg parsing / options
 # filename options
 # albums
+# images
+# file names? should i make api call to get it for artist name etc
 
 
 def is_library_album(album_id: str) -> bool:
@@ -81,6 +83,13 @@ class PlaybackData:
             )
             for song in cast(list[dict[str, list[dict[str, str]]]], self.raw.get("songList", []))
         ]
+
+
+@dataclass(frozen=True)
+class Arguments:
+    url: str | None
+    directory: str | None
+    logout: bool
 
 
 class AppleMusicSession:
@@ -227,6 +236,19 @@ class AppleMusicAPI:
                 "extend[songs]": "inFavorites",
             },
         )
+
+    def get_track_info(self, track_id: str) -> JSON:
+        path = f"me/library/songs/{track_id}" if is_library_track(track_id) else f"catalog/us/songs/{track_id}"
+        return self.get(path, params={"include": "artists,albums,catalog"})
+
+    def get_catalog_tracks(self, track_ids: list[str]) -> JSON:
+        path = "catalog/us/songs"
+        params = {
+            "ids": ",".join(track_ids),
+            "include": "artists,albums",
+            "extend": "inFavorites",
+        }
+        return self.get(path, params=params)
 
 
 class AppleMusicPlayback:
@@ -408,34 +430,87 @@ class AppleMusicDownloader:
         print(f"Downloaded track {track_id} to {output_path}")
 
 
-def main():
-    if len(sys.argv) < 2:
-        raise SystemExit(f"Usage: {sys.argv[0]} <Apple Music URL>")
-    argument = sys.argv[1]
+def parse_args() -> Arguments:
+    parser = ArgumentParser(description="Download tracks from Apple Music.")
 
+    _ = parser.add_argument(
+        "url",
+        nargs="?",
+        help="Apple Music URL to download",
+    )
+    _ = parser.add_argument(
+        "-d",
+        "--directory",
+        type=Path,
+        help="Directory to download to",
+    )
+    _ = parser.add_argument(
+        "--logout",
+        action="store_true",
+        help="Clear stored Apple Music credentials",
+    )
+
+    args = parser.parse_args()
+    url = cast(str | None, args.url)
+    directory = cast(str | None, args.directory)
+    logout = cast(bool, args.logout)
+
+    if logout and url is not None:
+        parser.error("--logout cannot be used with a URL")
+
+    if directory is not None and url is None:
+        parser.error("DIRECTORY requires a URL")
+
+    if not logout and url is None:
+        parser.error("a URL is required unless --logout is specified")
+
+    return Arguments(url, directory, logout)
+
+
+def parse_apple_music_url(url: str) -> tuple[str, str, str]:
+    prefix = f"{APPLE_MUSIC_URL}/"
+
+    if not url.startswith(prefix):
+        raise ValueError("URL is not Apple Music")
+
+    parts = url.removeprefix(prefix).split("/")
+
+    if len(parts) < 4:
+        raise ValueError("Could not parse Apple Music URL")
+
+    _, url_type, slug, am_id, *_ = parts
+    return url_type, slug, am_id
+
+
+def main():
+    args = parse_args()
     session = AppleMusicSession(Session())
-    if argument == "--logout":
+
+    if args.logout:
         session.clear_credentials()
         return
+
+    assert args.url is not None
+    url_type, slug, am_id = parse_apple_music_url(args.url)
+
     if not session.login():
         raise SystemExit("Authentication failed")
-
-    parts = argument.split("/")
-    if len(parts) < 7:
-        raise SystemExit("Could not parse Apple Music URL")
-    _, _, _, _, url_type, slug, am_id, *_ = parts
 
     # api = AppleMusicAPI(session)
     amp = AppleMusicPlayback(session)
     downloader = AppleMusicDownloader(amp)
 
+    output_dir = Path(args.directory) if args.directory else Path.cwd()
+
     if url_type.startswith("album"):
         # api.get_album_info(am_id)
         print("not supported yet :)")
     elif url_type.startswith("song"):
-        downloader.download_track(am_id, f"{slug}.m4a")
+        output_path = output_dir / f"{slug}.m4a"
+        downloader.download_track(am_id, str(output_path))
+        # download image
     else:
-        print("unsupported url")
+        raise SystemExit(f"Unsupported Apple Music URL type: {url_type}")
 
 
 if __name__ == "__main__":
