@@ -16,6 +16,8 @@ from pywidevine import PSSH, Cdm, Device
 from pywidevine.license_protocol_pb2 import WidevinePsshData
 from requests import Session
 
+SAVE_DIRECTORY = "~/Music"  # populate if you want a default save directory, eg. ~/Music
+
 APPLE_MUSIC_URL = "https://music.apple.com"
 APPLE_MUSIC_API = "https://amp-api.music.apple.com/v1"
 WEB_PLAYBACK_URL = "https://play.music.apple.com/WebObjects/MZPlay.woa/wa/webPlayback"
@@ -121,7 +123,7 @@ class Arguments:
 
 
 class AppleMusicSession:
-    def __init__(self, http: Session):
+    def __init__(self, http: Session) -> None:
         self.http: Session = http
         self.credentials: AppleMusicCredentials | None = None
 
@@ -142,11 +144,11 @@ class AppleMusicSession:
 
     def clear_credentials(self) -> None:
         self.credentials = None
-        try:
-            keyring.delete_password(KEYRING_NAME, "user_token")
-            keyring.delete_password(KEYRING_NAME, "media_token")
-        except PasswordDeleteError:
-            pass
+        for key in ("user_token", "media_token"):
+            try:
+                keyring.delete_password(KEYRING_NAME, key)
+            except PasswordDeleteError:
+                pass
 
     def headers(self) -> dict[str, str]:
         if self.credentials is None:
@@ -205,7 +207,7 @@ class AppleMusicSession:
         return None
 
     @staticmethod
-    def _acquire_media_token(context: BrowserContext):
+    def _acquire_media_token(context: BrowserContext) -> str:
         # fetch main page
         response = context.request.get(APPLE_MUSIC_URL)
         html = response.text()
@@ -230,7 +232,7 @@ class AppleMusicSession:
 
 
 class AppleMusicAPI:
-    def __init__(self, auth: AppleMusicSession):
+    def __init__(self, auth: AppleMusicSession) -> None:
         self.session: AppleMusicSession = auth
 
     def get(self, path: str, params: dict[str, str]) -> JSON:
@@ -279,7 +281,7 @@ class AppleMusicAPI:
 
 
 class AppleMusicPlayback:
-    def __init__(self, session: AppleMusicSession):
+    def __init__(self, session: AppleMusicSession) -> None:
         self.session: AppleMusicSession = session
 
     def get_service_certificate(self) -> bytes:
@@ -331,7 +333,7 @@ class AppleMusicPlayback:
 
 
 class AppleMusicDownloaderCore:
-    def __init__(self, session: Session):
+    def __init__(self, session: Session) -> None:
         self.http: Session = session
         self.decryptor: Path = Path(__file__).parent / "mp4decrypt"
         assert self.decryptor.exists(), f"mp4decrypt missing at {self.decryptor}"
@@ -420,7 +422,7 @@ class HLSParser:
 
 
 class AppleMusicDownloader:
-    def __init__(self, session: AppleMusicSession):
+    def __init__(self, session: AppleMusicSession) -> None:
         self.amp: AppleMusicPlayback = AppleMusicPlayback(session)
         self.http: Session = session.http
         self.core: AppleMusicDownloaderCore = AppleMusicDownloaderCore(self.http)
@@ -456,13 +458,12 @@ class AppleMusicDownloader:
         print(f"Downloaded artwork to {output_path}")
 
     @staticmethod
-    def embed_track_metadata(track: Track, path: Path, artwork: bytes | None = None) -> None:
+    def embed_track_metadata(track: Track, path: Path, url: str | None = None, artwork: bytes | None = None) -> None:
         mp4 = MP4(path)
 
-        tags = mp4.tags
-        if tags is None:
+        if mp4.tags is None:
             mp4.add_tags()
-            tags = mp4.tags
+        tags = mp4.tags
         assert tags is not None
 
         tags["\xa9nam"] = track.track_name
@@ -471,14 +472,16 @@ class AppleMusicDownloader:
         tags["\xa9day"] = track.release_date
         tags["trkn"] = [(track.track_number, 0)]
 
+        if url:
+            tags["\xa9url"] = url
+            tags["purl"] = [url]
         if artwork:
             tags["covr"] = [MP4Cover(artwork)]
 
         mp4.save()  # pyright: ignore[reportUnknownMemberType]
 
 
-
-class Converter:
+class AppleMusicModelParser:
     class Traverse:
         """
         Safely traverse nested dicts and lists.
@@ -536,13 +539,6 @@ class Converter:
                     pass
             return []
 
-    # @classmethod
-    # def artwork_url(cls, artwork_data: JSON) -> str:
-    #     url = cls.Traverse(artwork_data)["url"]("")
-    #     height = cls.Traverse(artwork_data)["height"](9999)
-    #     width = cls.Traverse(artwork_data)["width"](9999)
-    #     return url.replace("{w}", str(width)).replace("{h}", str(height)).replace("{c}", "bb")
-    
     @classmethod
     def artwork_url(cls, url: str) -> str:
         return url.replace("{w}", "9999").replace("{h}", "9999").replace("{c}", "bb")
@@ -557,22 +553,12 @@ class Converter:
         track_id = cls.Traverse(data)["id"]("") or cls.Traverse(play_params)["id"]("")
         return Track(
             library_id=track_id if is_library_track(track_id) else "",
-            catalog_id=(cat_track.catalog_id or cls.Traverse(play_params)["catalogId"](""))
-            if is_library_track(track_id)
-            else track_id,
+            catalog_id=(cat_track.catalog_id or cls.Traverse(play_params)["catalogId"]("")) if is_library_track(track_id) else track_id,
             track_name=cast(str, attrs.get("name") or cat_track.track_name or "Unknown Track"),
-            artist_name=cat_track.artist_name
-            or cls.Traverse(attrs)["artistName"]("")
-            or (album.artist_name if album else "Unknown Artist"),
-            album_name=cat_track.album_name
-            or cls.Traverse(attrs)["albumName"]("")
-            or (album.album_name if album else "Unknown Album"),
-            artwork_url=cat_track.artwork_url
-            or cls.artwork_url(cls.Traverse(attrs)["artwork"]["url"](""))
-            or (album.artwork_url if album else ""),
-            release_date=cat_track.release_date
-            or cls.Traverse(attrs)["releaseDate"]("")
-            or (album.release_date if album else ""),
+            artist_name=cat_track.artist_name or cls.Traverse(attrs)["artistName"]("") or (album.artist_name if album else "Unknown Artist"),
+            album_name=cat_track.album_name or cls.Traverse(attrs)["albumName"]("") or (album.album_name if album else "Unknown Album"),
+            artwork_url=cat_track.artwork_url or cls.artwork_url(cls.Traverse(attrs)["artwork"]["url"]("")) or (album.artwork_url if album else ""),
+            release_date=cat_track.release_date or cls.Traverse(attrs)["releaseDate"]("") or (album.release_date if album else ""),
             track_number=cls.Traverse(attrs)["trackNumber"](1),
         )
 
@@ -585,16 +571,13 @@ class Converter:
         album = Album(
             library_id=album_id if is_library_album(album_id) else "",
             album_name=cls.Traverse(attrs)["name"]("").removesuffix(" - Single").removesuffix(" - EP"),
-            catalog_id=cls.Traverse(data)["relationships"]["catalog"]["data"][0]["id"]("")
-            if is_library_album(album_id)
-            else album_id,
+            catalog_id=cls.Traverse(data)["relationships"]["catalog"]["data"][0]["id"]("") if is_library_album(album_id) else album_id,
             artist_name=cls.Traverse(attrs)["artistName"](""),
             artwork_url=cls.artwork_url(cls.Traverse(attrs)["artwork"]["url"]("")),
             release_date=cls.Traverse(attrs)["releaseDate"]("0000-00-00"),
         )
         tracks_data = cast(list[dict[str, JSON]], cls.Traverse(data)["relationships"]["tracks"]["data"]([]))
         album.tracks = [cls.track(t, album) for t in tracks_data]
-        # album.artwork_url = album.artwork_url or next(t.artwork_url for t in album.tracks)
 
         return album
 
@@ -718,9 +701,9 @@ class DownloadManager:
         self.api: AppleMusicAPI = AppleMusicAPI(session)
         self.downloader: AppleMusicDownloader = AppleMusicDownloader(session)
 
-    def track(self, track_id: str, output_dir: Path, only_artwork: bool) -> None:
+    def track(self, track_id: str, output_dir: Path, only_artwork: bool, url: str) -> None:
         track_data = self.api.get_track_info(track_id)
-        track = Converter.track(track_data)
+        track = AppleMusicModelParser.track(track_data)
         output_path = PathConstructor.track(output_dir, track)
 
         artwork = self.downloader.fetch_artwork(track.artwork_url)
@@ -730,11 +713,25 @@ class DownloadManager:
             return
 
         self.downloader.download_track(track, output_path)
-        self.downloader.embed_track_metadata(track, output_path, artwork)
+        self.downloader.embed_track_metadata(track, output_path, url, artwork)
+
+    def album(self, album_id: str, output_dir: Path, only_artwork: bool, url: str) -> None:
+        album_data = self.api.get_album_info(album_id)
+        album = AppleMusicModelParser.album(album_data)
+
+        artwork = self.downloader.fetch_artwork(album.artwork_url)
+        if only_artwork:
+            output_path = PathConstructor.album_artwork(output_dir, album)
+            self.downloader.save_artwork(artwork, output_path)
+            return
+
+        for track in album.tracks:
+            output_path = PathConstructor.album_track(output_dir, album, track)
+            self.downloader.download_track(track, output_path)
+            self.downloader.embed_track_metadata(track, output_path, url, artwork)
 
 
-
-def main():
+def main() -> None:
     args = ArgParser.parse()
     session = AppleMusicSession(Session())
 
@@ -748,40 +745,13 @@ def main():
     if not session.login():
         raise SystemExit("Authentication failed")
 
-    api = AppleMusicAPI(session)
-    downloader = AppleMusicDownloader(session)
-
-    output_dir = args.directory if args.directory else Path.cwd()
+    manager = DownloadManager(session)
+    output_dir = args.directory or Path(SAVE_DIRECTORY).expanduser() if SAVE_DIRECTORY else Path.cwd()
 
     if url_type.startswith("album"):
-        album_data = api.get_album_info(am_id)
-        album = Converter.album(album_data)
-
-        artwork = downloader.fetch_artwork(album.artwork_url)
-        if args.only_artwork:
-            output_path = PathConstructor.album_artwork(output_dir, album)
-            downloader.save_artwork(artwork, output_path)
-            return
-
-        for track in album.tracks:
-            output_path = PathConstructor.album_track(output_dir, album, track)
-            downloader.download_track(track, output_path)
-            downloader.embed_track_metadata(track, output_path)
-
+        manager.album(am_id, output_dir, args.only_artwork, args.url)
     elif url_type.startswith("song"):
-        track_data = api.get_track_info(am_id)
-        track = Converter.track(track_data)
-        output_path = PathConstructor.track(output_dir, track)
-
-        artwork = downloader.fetch_artwork(track.artwork_url)
-        if args.only_artwork:
-            output_path = PathConstructor.track_artwork(output_dir, track)
-            downloader.save_artwork(artwork, output_path)
-            return
-
-        downloader.download_track(track, output_path)
-        downloader.embed_track_metadata(track, output_path, artwork)
-
+        manager.track(am_id, output_dir, args.only_artwork, args.url)
     else:
         raise SystemExit(f"Unsupported Apple Music URL type: {url_type}")
 
