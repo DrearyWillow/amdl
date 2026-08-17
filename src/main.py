@@ -3,6 +3,7 @@ import re
 import subprocess
 from argparse import ArgumentParser
 from collections.abc import Mapping
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Self, TypeVar, cast, overload
@@ -105,6 +106,7 @@ class Track:
     album_name: str = ""
     artwork_url: str = ""
     release_date: str = ""
+    catalog_url: str = ""
     track_number: int = 1
 
     @property
@@ -120,6 +122,7 @@ class Album:
     artist_name: str = ""
     artwork_url: str = ""
     release_date: str = ""
+    catalog_url: str = ""
     tracks: list[Track] = field(default_factory=list)
 
     @property
@@ -576,6 +579,7 @@ class AppleMusicModelParser:
             or (album.artwork_url if album else ""),
             release_date=cat_track.release_date or Traverse(attrs)["releaseDate"](album.release_date if album else ""),
             track_number=Traverse(attrs)["trackNumber"](1),
+            catalog_url=cat_track.catalog_url or Traverse(attrs)["url"]("") or (album.catalog_url if album else ""),
         )
 
     @classmethod
@@ -583,16 +587,16 @@ class AppleMusicModelParser:
         data = Traverse(album_data)["data"][0](album_data)
         attrs = Traverse(data)["attributes"](empty_dict())
         album_id = Traverse(data)["id"]("")
+        cat_data = Traverse(data)["relationships"]["catalog"]["data"][0](empty_dict())
 
         album = Album(
             library_id=album_id if is_library_album(album_id) else "",
             album_name=Traverse(attrs)["name"]("").removesuffix(" - Single").removesuffix(" - EP"),
-            catalog_id=Traverse(data)["relationships"]["catalog"]["data"][0]["id"]("")
-            if is_library_album(album_id)
-            else album_id,
+            catalog_id=Traverse(cat_data)["id"]("") if is_library_album(album_id) else album_id,
             artist_name=Traverse(attrs)["artistName"](""),
             artwork_url=cls.artwork_url(Traverse(attrs)["artwork"]["url"]("")),
             release_date=Traverse(attrs)["releaseDate"]("0000-00-00"),
+            catalog_url=Traverse(cat_data)["url"]("") if is_library_album(album_id) else Traverse(data)["url"](""),
         )
         tracks_data = Traverse(data)["relationships"]["tracks"]["data"](empty_list())
         album.tracks = [cls.track(t, album) for t in tracks_data]
@@ -725,7 +729,7 @@ class DownloadManager:
         self.api: AppleMusicAPI = AppleMusicAPI(session)
         self.downloader: AppleMusicDownloader = AppleMusicDownloader(session)
 
-    def track(self, track_id: str, output_dir: Path, only_artwork: bool, url: str) -> None:
+    def track(self, track_id: str, output_dir: Path, only_artwork: bool, input_url: str) -> None:
         track_data = self.api.get_track_info(track_id)
         track = AppleMusicModelParser.track(track_data)
         output_path = PathConstructor.track(output_dir, track)
@@ -737,11 +741,12 @@ class DownloadManager:
             return
 
         self.downloader.download_track(track, output_path)
-        self.downloader.embed_track_metadata(track, output_path, url, artwork)
+        self.downloader.embed_track_metadata(track, output_path, track.catalog_url or input_url, artwork)
 
-    def album(self, album_id: str, output_dir: Path, only_artwork: bool, url: str) -> None:
+    def album(self, album_id: str, output_dir: Path, only_artwork: bool, input_url: str) -> None:
         album_data = self.api.get_album_info(album_id)
         album = AppleMusicModelParser.album(album_data)
+        url = album.catalog_url or next(t.catalog_url for t in album.tracks) or input_url
 
         artwork = self.downloader.fetch_artwork(album.artwork_url)
         if only_artwork:
@@ -749,10 +754,13 @@ class DownloadManager:
             self.downloader.save_artwork(artwork, output_path)
             return
 
-        for track in album.tracks:
+        def download(track: Track) -> None:
             output_path = PathConstructor.album_track(output_dir, album, track)
             self.downloader.download_track(track, output_path)
             self.downloader.embed_track_metadata(track, output_path, url, artwork)
+
+        with ThreadPoolExecutor(max_workers=8) as executor:
+            _ = executor.map(download, album.tracks)
 
 
 def main() -> None:
