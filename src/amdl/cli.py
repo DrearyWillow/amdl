@@ -2,9 +2,6 @@ from argparse import ArgumentParser
 from dataclasses import dataclass
 from pathlib import Path
 from typing import cast
-from urllib.parse import parse_qs, urlparse
-
-from amdl.config import APPLE_MUSIC_URL
 
 
 @dataclass(frozen=True)
@@ -76,33 +73,3 @@ class ArgParser:
         cls.validate(arguments, parser)
         return arguments
 
-    @staticmethod
-    def apple_music_url(url: str) -> tuple[str, str]:
-        parsed = urlparse(url)
-
-        if parsed.netloc != urlparse(APPLE_MUSIC_URL).netloc:
-            raise ValueError("URL is not an Apple Music URL")
-
-        parts = [p for p in parsed.path.strip("/").split("/") if p]
-
-        if len(parts) < 3:
-            raise ValueError("Could not parse Apple Music URL: path too short")
-
-        if parts[1] == "library":
-            if len(parts) < 4:
-                raise ValueError("Invalid Apple Music library URL")
-            url_type = parts[2]
-            am_id = parts[3]
-            return url_type, am_id
-
-        url_type = parts[1]
-        am_id = parts[-1]
-
-        if url_type == "library" and parsed.query:
-            for field, values in parse_qs(parsed.query).items():
-                if field == "i":
-                    url_type = "song"
-                    am_id = values[0]
-                    break
-
-        return url_type, am_id

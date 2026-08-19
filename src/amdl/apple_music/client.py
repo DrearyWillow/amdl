@@ -1,0 +1,91 @@
+import base64
+from collections.abc import Mapping
+from typing import cast
+
+from requests import Session
+
+from amdl.apple_music.auth import AppleMusicAuthenticator
+from amdl.apple_music.ids import is_library_album, is_library_track
+from amdl.apple_music.parsers import (
+    AppleMusicAlbumParser,
+    AppleMusicLicenseParser,
+    AppleMusicPlaybackParser,
+    AppleMusicTrackParser,
+)
+from amdl.config import (
+    APPLE_MUSIC_API,
+    APPLE_MUSIC_URL,
+    LICENSE_URL,
+    WEB_PLAYBACK_URL,
+    WIDEVINE_CERT_URL,
+)
+from amdl.domain import Album, Playback, Track
+from amdl.json_type import JSON
+
+
+class AppleMusicClient:
+    def __init__(self, auth: AppleMusicAuthenticator) -> None:
+        self.http: Session = Session()
+        self.auth: AppleMusicAuthenticator = auth
+
+    def headers(self) -> dict[str, str]:
+        creds = self.auth.credentials
+        if creds is None:
+            raise RuntimeError("Apple Music session is not authenticated")
+        return {
+            "Authorization": f"Bearer {creds.media_token}",
+            "Music-User-Token": creds.user_token,
+            "media-user-token": creds.user_token,
+            "x-apple-music-user-token": creds.user_token,
+            "Origin": APPLE_MUSIC_URL,
+            "Referer": APPLE_MUSIC_URL,
+        }
+
+    def post(self, url: str, json: Mapping[str, str | bool]) -> JSON:
+        response = self.http.post(url, headers=self.headers(), json=json)
+        response.raise_for_status()
+        return cast(JSON, response.json())
+
+    def get(self, url: str, params: dict[str, str] | None = None) -> JSON:
+        response = self.http.get(url, headers=self.headers(), params=params)
+        print(f"{url} (GET) -> {response.status_code}")
+        response.raise_for_status()
+        return cast(JSON, response.json())
+
+    def get_album(self, album_id: str) -> Album:
+        params = {"include": "catalog,songs"} if is_library_album(album_id) else None
+        response = self.get(f"{APPLE_MUSIC_API}/me/library/albums/{album_id}", params=params)
+        return AppleMusicAlbumParser.parse(response)
+
+    def get_track(self, track_id: str) -> Track:
+        path = f"me/library/songs/{track_id}" if is_library_track(track_id) else f"catalog/us/songs/{track_id}"
+        response = self.get(f"{APPLE_MUSIC_API}/{path}", params={"include": "albums,catalog"})
+        return AppleMusicTrackParser.parse(response)
+
+    def get_service_certificate(self) -> bytes:
+        return self.http.get(WIDEVINE_CERT_URL).content
+
+    def get_playback(self, track_id: str) -> Playback:
+        body = {"universalLibraryId": track_id} if is_library_track(track_id) else {"salableAdamId": track_id}
+        return AppleMusicPlaybackParser.parse(self.post(WEB_PLAYBACK_URL, json=body))
+
+    def get_license(self, challenge: str, kid_b64: str, track_id: str) -> bytes:
+        kid_bytes = base64.b64decode(kid_b64)
+        kid_encoded = base64.b64encode(kid_bytes).decode()
+        response = self.post(
+            LICENSE_URL,
+            json={
+                "challenge": challenge,
+                "key-system": "com.widevine.alpha",
+                "adamId": track_id,
+                "isLibrary": is_library_track(track_id),
+                "user-initiated": True,
+                "uri": f"data:;base64,{kid_encoded}",
+            },
+        )
+        return base64.b64decode(AppleMusicLicenseParser.parse(response))
+
+    def fetch_content(self, url: str) -> bytes:
+        response = self.http.get(url, timeout=10)
+        response.raise_for_status()
+        return response.content

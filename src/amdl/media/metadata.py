@@ -1,0 +1,36 @@
+from pathlib import Path
+
+from mutagen.mp4 import MP4, MP4Cover
+
+from amdl.domain import Track
+
+
+def embed_track_metadata(
+    track: Track, path: Path, url: str | None = None, artwork: bytes | None = None
+) -> None:
+    mp4 = MP4(path)
+
+    if mp4.tags is None:
+        mp4.add_tags()
+    tags = mp4.tags
+    assert tags is not None
+
+    tags["\xa9nam"] = track.name
+    tags["\xa9ART"] = track.artist_name
+    tags["\xa9alb"] = track.album_name
+    tags["\xa9day"] = str(track.release_date)
+    tags["trkn"] = [(track.track_number, 0)]
+
+    if url:
+        tags["\xa9url"] = url
+        tags["purl"] = [url]
+    if artwork:
+        tags["covr"] = [MP4Cover(artwork)]
+
+    mp4.save()  # pyright: ignore[reportUnknownMemberType]
+
+
+def save_artwork(image_bytes: bytes, output_path: Path) -> None:
+    with output_path.open("wb") as file:
+        _ = file.write(image_bytes)
+    print(f"Downloaded artwork to {output_path}")
