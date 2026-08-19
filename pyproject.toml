@@ -5,17 +5,20 @@ description = "download apple music meow"
 readme = "README.md"
 requires-python = ">=3.15"
 dependencies = [
-    "basedpyright>=1.39.10",
     "keyring>=25.7.0",
     "m3u8>=6.0.0",
     "mutagen>=1.48.1",
     "playwright>=1.62.0",
+    "pydantic>=2.13.4",
     "pywidevine>=1.9.0",
     "requests>=2.34.2",
 ]
 
 [project.scripts]
 amdl = "amdl.main:main"
+
+[tool.uv]
+package = true
 
 [tool.pyright]
 venvPath = "."
@@ -24,3 +27,9 @@ venv = ".venv"
 [tool.ruff.format]
 quote-style = "double"
 indent-style = "space"
+
+[dependency-groups]
+dev = [
+    "basedpyright>=1.39.10",
+]
+
