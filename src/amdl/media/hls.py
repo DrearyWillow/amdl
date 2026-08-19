@@ -17,11 +17,7 @@ class HLSManifest:
     @staticmethod
     def extract_kid(playlist_url: str) -> str:
         playlist = m3u8.load(str(playlist_url))
-        if (
-            not playlist.keys
-            or not playlist.keys[0]
-            or not isinstance(playlist.keys[0].uri, str)
-        ):
+        if not playlist.keys or not playlist.keys[0] or not isinstance(playlist.keys[0].uri, str):
             raise ValueError("No encryption key found in playlist")
         return playlist.keys[0].uri.replace("data:;base64,", "")
 

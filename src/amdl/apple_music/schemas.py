@@ -78,9 +78,7 @@ class AppleMusicPlaybackResponse(BaseModel):
     customer_message: str | None = Field(default=None, alias="customerMessage")
     failure_type: str | None = Field(default=None, alias="failureType")
     dialog: AppleMusicPlaybackDialog | None = None
-    song_list: list[AppleMusicPlaybackSong] | None = Field(
-        default=None, alias="songList"
-    )
+    song_list: list[AppleMusicPlaybackSong] | None = Field(default=None, alias="songList")
 
     model_config: ClassVar[ConfigDict] = ConfigDict(populate_by_name=True)
 

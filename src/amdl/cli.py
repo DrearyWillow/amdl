@@ -72,4 +72,3 @@ class ArgParser:
         arguments = Arguments(url, directory, only_artwork, logout)
         cls.validate(arguments, parser)
         return arguments
-

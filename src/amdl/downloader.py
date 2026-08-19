@@ -16,8 +16,7 @@ class Downloader:
     def __init__(self, auth: AppleMusicAuthenticator) -> None:
         self.client: AppleMusicClient = AppleMusicClient(auth)
         self.media: MediaDownloader = MediaDownloader(self.client)
-        self.drm: WidevineDRM = WidevineDRM()
-        self.drm.set_service_certificate(self.client.get_service_certificate())
+        self.drm: WidevineDRM = WidevineDRM(self.client)
 
     def download(
         self, am_type: AppleMusicUrlType, am_id: str, output_dir: Path, only_artwork: bool, input_url: str
@@ -67,10 +66,7 @@ class Downloader:
         media_url = HLSManifest.extract_media_url(playlist_url)
         kid = HLSManifest.extract_kid(playlist_url)
 
-        challenge = self.drm.get_license_challenge(kid)
-        license_data = self.client.get_license(challenge, kid, track.id)
-        key = self.drm.parse_license_and_get_key(license_data)
-
+        key = self.drm.get_content_key(kid, track.id)
         self.media.download_and_decrypt(media_url, output_path, kid, key)
 
         print(f"Downloaded track {track.id} to {output_path}")

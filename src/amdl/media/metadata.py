@@ -5,9 +5,7 @@ from mutagen.mp4 import MP4, MP4Cover
 from amdl.domain import Track
 
 
-def embed_track_metadata(
-    track: Track, path: Path, url: str | None = None, artwork: bytes | None = None
-) -> None:
+def embed_track_metadata(track: Track, path: Path, url: str | None = None, artwork: bytes | None = None) -> None:
     mp4 = MP4(path)
 
     if mp4.tags is None:

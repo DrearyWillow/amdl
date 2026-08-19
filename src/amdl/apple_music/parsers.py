@@ -21,14 +21,8 @@ class AppleMusicTrackParser:
     def parse_track(cls, resource: AppleMusicTrack) -> Track:
         if cls._is_library_track(resource):
             catalog = cls._catalog_track(resource)
-            catalog_id = (
-                catalog.id
-                if catalog is not None
-                else resource.attributes.play_params.catalog_id
-            )
-            attributes = (
-                catalog.attributes if catalog is not None else resource.attributes
-            )
+            catalog_id = catalog.id if catalog is not None else resource.attributes.play_params.catalog_id
+            attributes = catalog.attributes if catalog is not None else resource.attributes
         else:
             catalog_id = resource.id
             attributes = resource.attributes
@@ -90,9 +84,7 @@ class AppleMusicAlbumParser:
     def parse_album(cls, resource: AppleMusicAlbum) -> Album:
         if cls._is_library_album(resource):
             catalog = cls._catalog_album(resource)
-            attributes = (
-                catalog.attributes if catalog is not None else resource.attributes
-            )
+            attributes = catalog.attributes if catalog is not None else resource.attributes
             library_id = resource.id
             catalog_id = catalog.id if catalog is not None else None
         else:
@@ -111,16 +103,10 @@ class AppleMusicAlbumParser:
         )
 
         relationships = resource.relationships
-        if (
-            relationships is None
-            or relationships.tracks is None
-            or not relationships.tracks.data
-        ):
+        if relationships is None or relationships.tracks is None or not relationships.tracks.data:
             raise ValueError("Album has no tracks.")
 
-        album.tracks = [
-            AppleMusicTrackParser.parse_track(t) for t in relationships.tracks.data
-        ]
+        album.tracks = [AppleMusicTrackParser.parse_track(t) for t in relationships.tracks.data]
 
         return album
 

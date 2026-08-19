@@ -1,5 +1,3 @@
-
-
 import base64
 import subprocess
 from pathlib import Path
@@ -20,9 +18,7 @@ class MediaDownloader:
             _ = file.write(media)
         return encrypted_path
 
-    def decrypt(
-        self, encrypted_path: Path, output_path: Path, kid: str, key: str
-    ) -> None:
+    def decrypt(self, encrypted_path: Path, output_path: Path, kid: str, key: str) -> None:
         kid_hex = base64.b64decode(kid).hex()
         key_hex = base64.b64decode(key).hex()
         cmd = [
@@ -36,9 +32,7 @@ class MediaDownloader:
         if result.returncode != 0:
             raise RuntimeError(f"mp4decrypt failed: {result.stderr}")
 
-    def download_and_decrypt(
-        self, media_url: str, output_path: Path, kid: str, key: str
-    ) -> None:
+    def download_and_decrypt(self, media_url: str, output_path: Path, kid: str, key: str) -> None:
         encrypted_path = self.download_encrypted(media_url, output_path)
         self.decrypt(encrypted_path, output_path, kid, key)
         encrypted_path.unlink(missing_ok=True)

@@ -44,11 +44,7 @@ class AppleMusicAuthenticator:
     def _load_credentials(self) -> AppleMusicCredentials | None:
         user_token = keyring.get_password(KEYRING_NAME, "user_token")
         media_token = keyring.get_password(KEYRING_NAME, "media_token")
-        return (
-            AppleMusicCredentials(user_token, media_token)
-            if user_token and media_token
-            else None
-        )
+        return AppleMusicCredentials(user_token, media_token) if user_token and media_token else None
 
     def _save_credentials(self, credentials: AppleMusicCredentials) -> None:
         keyring.set_password(KEYRING_NAME, "user_token", credentials.user_token)
@@ -96,9 +92,7 @@ class AppleMusicAuthenticator:
 
         # extract the JWT token (starts with eyJ)
         # https://github.com/xiaohaiya/musicdl/commit/2526730caa4ebf3982d10903d91211549ec57505
-        match = re.search(
-            r'"(eyJ[A-Za-z0-9\-_]+\.eyJ[A-Za-z0-9\-_]+\.[A-Za-z0-9\-_]+)"', js
-        )
+        match = re.search(r'"(eyJ[A-Za-z0-9\-_]+\.eyJ[A-Za-z0-9\-_]+\.[A-Za-z0-9\-_]+)"', js)
         if not match:
             raise RuntimeError("Could not find media token in JS")
         token = match.group(1)
