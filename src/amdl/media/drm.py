@@ -4,7 +4,7 @@ from pathlib import Path
 from pywidevine import PSSH, Cdm, Device
 from pywidevine.license_protocol_pb2 import WidevinePsshData
 
-from amdl.apple_music.client import AppleMusicClient
+from amdl.apple_music import AppleMusicClient
 
 
 class WidevineDRM:
@@ -41,7 +41,7 @@ class WidevineDRM:
     def get_content_key(self, kid_b64: str, track_id: str) -> str:
         session_id = self.cdm.open()
         try:
-            _ = self.cdm.set_service_certificate(session_id, self.service_certificate,)
+            _ = self.cdm.set_service_certificate(session_id, self.service_certificate)
             challenge = self.get_license_challenge(session_id, kid_b64)
             license_data = self.client.get_license(challenge, kid_b64, track_id)
             return self.parse_license_and_get_key(session_id, license_data)

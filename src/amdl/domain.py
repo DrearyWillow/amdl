@@ -22,8 +22,7 @@ class DomainModel(BaseModel):
             return self.catalog_id
         if self.library_id is not None:
             return self.library_id
-
-        raise AssertionError("DomainModel invariant violated")
+        raise AssertionError("A library or catalog ID is required")
 
 
 class Track(DomainModel):

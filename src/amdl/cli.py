@@ -16,32 +16,10 @@ class ArgParser:
     @staticmethod
     def create_parser() -> ArgumentParser:
         parser = ArgumentParser(description="Download tracks from Apple Music.")
-
-        _ = parser.add_argument(
-            "url",
-            nargs="?",
-            help="Apple Music URL to download",
-        )
-        _ = parser.add_argument(
-            "-d",
-            "--directory",
-            type=Path,
-            help="Directory to download to",
-        )
-        _ = parser.add_argument(
-            "--logout",
-            action="store_true",
-            help="Clear stored Apple Music credentials",
-        )
-        _ = parser.add_argument(
-            "--art",
-            "--artwork",
-            "--cover",
-            dest="only_artwork",
-            action="store_true",
-            help="Only download the provided URL's artwork",
-        )
-
+        _ = parser.add_argument("url", nargs="?", help="Apple Music URL to download")
+        _ = parser.add_argument("-d", "--directory", type=Path, help="Directory to download to")
+        _ = parser.add_argument("--logout", action="store_true", help="Clear stored Apple Music credentials")
+        _ = parser.add_argument("--art", dest="only_artwork", action="store_true", help="Only download artwork")
         return parser
 
     @staticmethod

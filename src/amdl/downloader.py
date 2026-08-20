@@ -1,15 +1,19 @@
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
-from amdl.apple_music.auth import AppleMusicAuthenticator
-from amdl.apple_music.client import AppleMusicClient
-from amdl.apple_music.urls import AppleMusicUrlType
+from amdl.apple_music import AppleMusicAuthenticator, AppleMusicClient, AppleMusicUrlType
 from amdl.domain import Track
-from amdl.media.downloader import MediaDownloader
-from amdl.media.drm import WidevineDRM
-from amdl.media.hls import HLSManifest
-from amdl.media.metadata import embed_track_metadata, save_artwork
-from amdl.media.paths import album_artwork_path, album_track_path, track_artwork_path, track_path
+from amdl.media import (
+    HLSManifest,
+    MediaDownloader,
+    WidevineDRM,
+    album_artwork_path,
+    album_track_path,
+    embed_track_metadata,
+    save_artwork,
+    track_artwork_path,
+    track_path,
+)
 
 
 class Downloader:

@@ -2,7 +2,7 @@ import base64
 import subprocess
 from pathlib import Path
 
-from amdl.apple_music.client import AppleMusicClient
+from amdl.apple_music import AppleMusicClient
 
 
 class MediaDownloader:
@@ -21,13 +21,7 @@ class MediaDownloader:
     def decrypt(self, encrypted_path: Path, output_path: Path, kid: str, key: str) -> None:
         kid_hex = base64.b64decode(kid).hex()
         key_hex = base64.b64decode(key).hex()
-        cmd = [
-            self.decryptor,
-            "--key",
-            f"{kid_hex}:{key_hex}",
-            encrypted_path,
-            output_path,
-        ]
+        cmd: list[str | Path] = [self.decryptor, "--key", f"{kid_hex}:{key_hex}", encrypted_path, output_path]
         result = subprocess.run(cmd, capture_output=True, text=True, check=False)
         if result.returncode != 0:
             raise RuntimeError(f"mp4decrypt failed: {result.stderr}")

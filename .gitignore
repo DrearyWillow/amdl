@@ -7,3 +7,4 @@ wheels/
 .venv
 .dev
 .tests
+.mypy_cache

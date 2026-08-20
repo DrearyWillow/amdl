@@ -1,3 +1,4 @@
+from amdl.apple_music.ids import is_library_album, is_library_track
 from amdl.apple_music.schemas import (
     AppleMusicAlbum,
     AppleMusicAlbumResponse,
@@ -19,7 +20,7 @@ class AppleMusicTrackParser:
 
     @classmethod
     def parse_track(cls, resource: AppleMusicTrack) -> Track:
-        if cls._is_library_track(resource):
+        if is_library_track(resource.id):
             catalog = cls._catalog_track(resource)
             catalog_id = catalog.id if catalog is not None else resource.attributes.play_params.catalog_id
             attributes = catalog.attributes if catalog is not None else resource.attributes
@@ -51,10 +52,6 @@ class AppleMusicTrackParser:
 
         return catalog.data[0]
 
-    @staticmethod
-    def _is_library_track(resource: AppleMusicTrack) -> bool:
-        return resource.id.startswith("i.")
-
 
 class AppleMusicPlaybackParser:
     @classmethod
@@ -82,7 +79,7 @@ class AppleMusicAlbumParser:
 
     @classmethod
     def parse_album(cls, resource: AppleMusicAlbum) -> Album:
-        if cls._is_library_album(resource):
+        if is_library_album(resource.id):
             catalog = cls._catalog_album(resource)
             attributes = catalog.attributes if catalog is not None else resource.attributes
             library_id = resource.id
@@ -121,10 +118,6 @@ class AppleMusicAlbumParser:
             return None
 
         return catalog.data[0]
-
-    @staticmethod
-    def _is_library_album(resource: AppleMusicAlbum) -> bool:
-        return resource.id.startswith("l.")
 
 
 class AppleMusicLicenseParser:

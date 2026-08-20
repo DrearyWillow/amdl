@@ -1,5 +1,5 @@
 [project]
-name = "am-dl"
+name = "amdl"
 version = "0.1.0"
 description = "download apple music meow"
 readme = "README.md"
@@ -28,8 +28,13 @@ venv = ".venv"
 quote-style = "double"
 indent-style = "space"
 
+[tool.mypy]
+mypy_path = "src"
+explicit_package_bases = true
+
 [dependency-groups]
 dev = [
     "basedpyright>=1.39.10",
+    "mypy @ git+https://github.com/python/mypy.git@7f88c95bbf9af181a4de13e2c242c89216f15b19",
+    "types-m3u8>=6.0.0.20260518",
 ]
-
