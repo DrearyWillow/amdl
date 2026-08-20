@@ -2,12 +2,14 @@ from amdl.apple_music.ids import is_library_album, is_library_track
 from amdl.apple_music.schemas import (
     AppleMusicAlbum,
     AppleMusicAlbumResponse,
+    AppleMusicArtist,
+    AppleMusicArtistResponse,
     AppleMusicLicenseResponse,
     AppleMusicPlaybackResponse,
     AppleMusicTrack,
     AppleMusicTrackResponse,
 )
-from amdl.domain import Album, Playback, Track
+from amdl.domain import Album, Artist, Playback, Track
 from amdl.json_type import JSON
 
 
@@ -42,6 +44,46 @@ class AppleMusicTrackParser:
 
     @staticmethod
     def _catalog_track(resource: AppleMusicTrack) -> AppleMusicTrack | None:
+        if resource.relationships is None:
+            return None
+
+        catalog = resource.relationships.catalog
+
+        if catalog is None or not catalog.data:
+            return None
+
+        return catalog.data[0]
+
+
+class AppleMusicArtistParser:
+    @classmethod
+    def parse(cls, data: JSON) -> Artist:
+        response = AppleMusicArtistResponse.model_validate(data)
+        resource = response.data[0]
+        return cls.parse_artist(resource)
+
+    @classmethod
+    def parse_artist(cls, resource: AppleMusicArtist) -> Artist:
+        catalog = cls._catalog_artist(resource)
+        attributes = catalog.attributes if catalog is not None else resource.attributes
+
+        return Artist(
+            artist_id=catalog.id if catalog else resource.id,
+            name=attributes.name,
+            artwork_url=attributes.artwork.url,
+            albums=cls._albums(resource, catalog),
+        )
+
+    @staticmethod
+    def _albums(resource: AppleMusicArtist, catalog: AppleMusicArtist | None) -> list[Album]:
+        if catalog and catalog.relationships and catalog.relationships.albums:
+            return [AppleMusicAlbumParser.parse_album(a) for a in catalog.relationships.albums.data]
+        elif resource.relationships and resource.relationships.albums:
+            return [AppleMusicAlbumParser.parse_album(a) for a in resource.relationships.albums.data]
+        return []
+
+    @staticmethod
+    def _catalog_artist(resource: AppleMusicArtist) -> AppleMusicArtist | None:
         if resource.relationships is None:
             return None
 

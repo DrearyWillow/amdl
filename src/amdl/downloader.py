@@ -1,8 +1,10 @@
+from collections.abc import Generator
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
+# from typing import Protocol
 from amdl.apple_music import AppleMusicAuthenticator, AppleMusicClient, AppleMusicUrlType
-from amdl.domain import Track
+from amdl.domain import Album, Track
 from amdl.media import (
     HLSManifest,
     MediaDownloader,
@@ -14,6 +16,7 @@ from amdl.media import (
     track_artwork_path,
     track_path,
 )
+from amdl.media.paths import artist_artwork_path
 
 
 class Downloader:
@@ -25,51 +28,18 @@ class Downloader:
     def media(self, am_type: AppleMusicUrlType, am_id: str, output_dir: Path, input_url: str) -> None:
         match am_type:
             case AppleMusicUrlType.ALBUM:
-                self.album(am_id, output_dir, input_url)
+                AlbumDownloader(self).media(am_id, output_dir, input_url)
             case AppleMusicUrlType.SONG:
-                self.track(am_id, output_dir, input_url)
+                TrackDownloader(self).media(am_id, output_dir, input_url)
 
     def art(self, am_type: AppleMusicUrlType, am_id: str, output_dir: Path) -> None:
         match am_type:
             case AppleMusicUrlType.ALBUM:
-                self.album_artwork(am_id, output_dir)
+                AlbumDownloader(self).art(am_id, output_dir)
             case AppleMusicUrlType.SONG:
-                self.track_artwork(am_id, output_dir)
+                TrackDownloader(self).art(am_id, output_dir)
 
-    def track(self, track_id: str, output_dir: Path, input_url: str) -> None:
-        track = self.client.get_track(track_id)
-        output_path = track_path(output_dir, track)
-        url = str(track.url or input_url)
-        artwork =  self.client.fetch_content(track.artwork_url)
-        self._download_track_audio(track, output_path)
-        embed_track_metadata(track, output_path, url, artwork)
-
-    def track_artwork(self, track_id: str, output_dir: Path) -> None:
-        track = self.client.get_track(track_id)
-        artwork = self.client.fetch_content(track.artwork_url)
-        output_path = track_artwork_path(output_dir, track)
-        save_artwork(artwork, output_path)
-
-    def album(self, album_id: str, output_dir: Path, input_url: str) -> None:
-        album = self.client.get_album(album_id)
-        url = str(album.url or next((t.url for t in album.tracks if t.url is not None), None) or input_url)
-        artwork = self.client.fetch_content(album.artwork_url)
-
-        def download(track: Track) -> None:
-            output_path = album_track_path(output_dir, album, track)
-            self._download_track_audio(track, output_path)
-            embed_track_metadata(track, output_path, url, artwork)
-
-        with ThreadPoolExecutor(max_workers=8) as executor:
-            _ = executor.map(download, album.tracks)
-
-    def album_artwork(self, album_id: str, output_dir: Path) -> None:
-        album = self.client.get_album(album_id)
-        artwork = self.client.fetch_content(album.artwork_url)
-        output_path = album_artwork_path(output_dir, album)
-        save_artwork(artwork, output_path)
-
-    def _download_track_audio(self, track: Track, output_path: Path) -> None:
+    def download_track_audio(self, track: Track, output_path: Path) -> None:
         output_path.parent.mkdir(parents=True, exist_ok=True)
 
         playback = self.client.get_playback(track.id)
@@ -82,3 +52,82 @@ class Downloader:
         self.media_downloader.download_and_decrypt(media_url, output_path, kid, key)
 
         print(f"Downloaded track {track.id} to {output_path}")
+
+
+# class DownloadHandler(Protocol):
+#     def media(self, am_id: str, output_dir: Path, input_url: str) -> None: ...
+#     def art(self, am_id: str, output_dir: Path) -> None: ...
+
+
+class TrackDownloader:
+    def __init__(self, parent: Downloader) -> None:
+        self.parent: Downloader = parent
+
+    def media(self, track_id: str, output_dir: Path, input_url: str, /) -> None:
+        track = self.parent.client.get_track(track_id)
+        output_path = track_path(output_dir, track)
+        url = str(track.url or input_url)
+        artwork = self.parent.client.fetch_content(track.artwork_url)
+        self.parent.download_track_audio(track, output_path)
+        embed_track_metadata(track, output_path, url, artwork)
+
+    def art(self, track_id: str, output_dir: Path, /) -> None:
+        track = self.parent.client.get_track(track_id)
+        artwork = self.parent.client.fetch_content(track.artwork_url)
+        output_path = track_artwork_path(output_dir, track)
+        save_artwork(artwork, output_path)
+
+
+class AlbumDownloader:
+    type TrackContext = tuple[Album, Track, str, bytes]
+
+    def __init__(self, parent: Downloader) -> None:
+        self.parent: Downloader = parent
+
+    def media(self, album_id: str, output_dir: Path, input_url: str, /) -> None:
+        album = self.parent.client.get_album(album_id)
+        return self.download_tracks([album], output_dir, input_url)
+
+    def download_tracks(self, albums: list[Album], output_dir: Path, input_url: str) -> None:
+        work_items = self._build_contexts(albums, input_url)
+
+        def process_track(context: AlbumDownloader.TrackContext) -> None:
+            album, track, url, artwork = context
+            output_path = album_track_path(output_dir, album, track)
+            self.parent.download_track_audio(track, output_path)
+            embed_track_metadata(track, output_path, url, artwork)
+
+        with ThreadPoolExecutor(max_workers=8) as executor:
+            _ = list(executor.map(process_track, work_items))
+
+    def _build_contexts(self, albums: list[Album], input_url: str) -> Generator[TrackContext]:
+        def build(album: Album) -> tuple[Album, str, bytes]:
+            url = str(album.url or next((t.url for t in album.tracks if t.url is not None), None) or input_url)
+            artwork = self.parent.client.fetch_content(album.artwork_url)
+            return album, url, artwork
+
+        with ThreadPoolExecutor(max_workers=8) as executor:
+            album_contexts = list(executor.map(build, albums))
+
+        return ((album, track, url, artwork) for album, url, artwork in album_contexts for track in album.tracks)
+
+    def art(self, album_id: str, output_dir: Path, /) -> None:
+        album = self.parent.client.get_album(album_id)
+        artwork = self.parent.client.fetch_content(album.artwork_url)
+        output_path = album_artwork_path(output_dir, album)
+        save_artwork(artwork, output_path)
+
+
+class ArtistDownloader:
+    def __init__(self, parent: Downloader) -> None:
+        self.parent: Downloader = parent
+
+    def media(self, artist_id: str, output_dir: Path, input_url: str, /) -> None:
+        artist = self.parent.client.get_artist(artist_id)
+        AlbumDownloader(self.parent).download_tracks(artist.albums, output_dir, input_url)
+
+    def art(self, artist_id: str, output_dir: Path, /) -> None:
+        artist = self.parent.client.get_artist(artist_id)  # TODO: this could be significantly cheaper
+        artwork = self.parent.client.fetch_content(artist.artwork_url)
+        output_path = artist_artwork_path(output_dir, artist)
+        save_artwork(artwork, output_path)

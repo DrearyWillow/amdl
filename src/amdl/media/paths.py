@@ -1,7 +1,7 @@
 import re
 from pathlib import Path
 
-from amdl.domain import Album, Track
+from amdl.domain import Album, Artist, Track
 
 
 def sanitize_filename_component(value: str) -> str:
@@ -34,3 +34,8 @@ def album_artwork_path(output_dir: Path, album: Album) -> Path:
     artist = sanitize_filename_component(album.artist_name)
     album_name = sanitize_filename_component(album.name)
     return output_dir / f"{artist} - {album_name}.jpg"
+
+
+def artist_artwork_path(output_dir: Path, artist: Artist) -> Path:
+    name = sanitize_filename_component(artist.name)
+    return output_dir / f"{name}.jpg"

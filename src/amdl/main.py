@@ -30,16 +30,6 @@ def main() -> None:
     else:
         downloader.media(url_type, am_id, output_dir, args.url)
 
-    # match (args.only_artwork, url_type):
-    #     case (True, AppleMusicUrlType.ALBUM):
-    #         downloader.album_artwork(am_id, output_dir)
-    #     case (True, AppleMusicUrlType.SONG):
-    #         downloader.track_artwork(am_id, output_dir)
-    #     case (False, AppleMusicUrlType.ALBUM):
-    #         downloader.album(am_id, output_dir, args.url)
-    #     case (False, AppleMusicUrlType.SONG):
-    #         downloader.track(am_id, output_dir, args.url)
-
 
 if __name__ == "__main__":
     main()

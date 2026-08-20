@@ -5,9 +5,10 @@ from typing import cast
 from requests import Session
 
 from amdl.apple_music.auth import AppleMusicAuthenticator
-from amdl.apple_music.ids import is_library_album, is_library_track
+from amdl.apple_music.ids import is_library_album, is_library_artist, is_library_track
 from amdl.apple_music.parsers import (
     AppleMusicAlbumParser,
+    AppleMusicArtistParser,
     AppleMusicLicenseParser,
     AppleMusicPlaybackParser,
     AppleMusicTrackParser,
@@ -19,7 +20,7 @@ from amdl.config import (
     WEB_PLAYBACK_URL,
     WIDEVINE_CERT_URL,
 )
-from amdl.domain import Album, Playback, Track
+from amdl.domain import Album, Artist, Playback, Track
 from amdl.json_type import JSON
 
 
@@ -46,21 +47,78 @@ class AppleMusicClient:
         response.raise_for_status()
         return cast(JSON, response.json())
 
-    def get(self, url: str, params: dict[str, str] | None = None) -> JSON:
+    def get(self, url: str, params: Mapping[str, str | int] | None = None) -> JSON:
         response = self.http.get(url, headers=self.headers(), params=params)
         print(f"{url} (GET) -> {response.status_code}")
         response.raise_for_status()
         return cast(JSON, response.json())
 
     def get_album(self, album_id: str) -> Album:
-        params = {"include": "catalog,songs"} if is_library_album(album_id) else None
-        response = self.get(f"{APPLE_MUSIC_API}/me/library/albums/{album_id}", params=params)
+        if is_library_album(album_id):
+            response = self.get(
+                f"{APPLE_MUSIC_API}/me/library/albums/{album_id}",
+                params={
+                    "include": "catalog,artists,songs",
+                    "include[songs]": "artists",
+                },
+            )
+        else:
+            response = self.get(
+                f"{APPLE_MUSIC_API}/catalog/us/albums/{album_id}",
+                params={
+                    "include": "artists",
+                    "include[songs]": "artists",
+                },
+            )
         return AppleMusicAlbumParser.parse(response)
 
     def get_track(self, track_id: str) -> Track:
         path = f"me/library/songs/{track_id}" if is_library_track(track_id) else f"catalog/us/songs/{track_id}"
         response = self.get(f"{APPLE_MUSIC_API}/{path}", params={"include": "albums,catalog"})
+        # TODO: add back artists (in parser too)
+        # https://github.com/DrearyWillow/coda/blob/master/src/coda/core/converters.py
         return AppleMusicTrackParser.parse(response)
+
+    def get_artist(self, artist_id: str) -> Artist:
+        if is_library_artist(artist_id):
+            response = self.get(
+                f"{APPLE_MUSIC_API}/me/library/artists/{artist_id}",
+                params={"include": "catalog,albums", "include[albums]": "tracks"},
+            )
+        else:
+            response = self.get(
+                f"{APPLE_MUSIC_API}/catalog/us/artists/{artist_id}",
+                params={"include": "albums", "include[albums]": "tracks"},
+            )
+        return AppleMusicArtistParser.parse(response)
+
+    # def get_pins(self) -> Pins:
+    #     return self.get(
+    #         f"{APPLE_MUSIC_API}/me/library/pins",
+    #         params={
+    #             "include[library-artists]": "catalog",
+    #             "include[library-songs]": "albums",
+    #             "limit": 6,
+    #         },
+    #     )
+
+    # def get_playlist(self, playlist_id: str) -> Playlist:
+    #     return self.get(
+    #         f"{APPLE_MUSIC_API}/me/library/playlists/{playlist_id}",
+    #         params={"include": "tracks", "include[library-songs]": "albums,catalog"},
+    #     )
+
+    # def get_playlist_tracks(self, playlist_id: str, offset: int = 0, limit: int = 100) -> Playlist:
+    #     return self.get(
+    #         f"{APPLE_MUSIC_API}/me/library/playlists/{playlist_id}/tracks",
+    #         params={"offset": offset, "limit": limit, "include[library-songs]": "artists,albums,catalog"},
+    #     )
+
+    # def get_profile_me(self) -> Profile:
+    #     return self.get("me/social/profile", params={"include": "social-profile"})
+
+    # def get_profile(self, handle: str) -> Profile:
+    #     return self.get("social/us/social-profiles", params={"filter[handle]": handle})
 
     def get_service_certificate(self) -> bytes:
         return self.http.get(WIDEVINE_CERT_URL).content

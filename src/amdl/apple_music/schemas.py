@@ -117,3 +117,27 @@ class AppleMusicTrack(BaseModel):
 
 class AppleMusicTrackResponse(BaseModel):
     data: list[AppleMusicTrack]
+
+
+
+class AppleMusicArtistCatalogRelationship(BaseModel):
+    data: list[AppleMusicArtist]
+
+class AppleMusicArtistAlbumRelationship(BaseModel):
+    data: list[AppleMusicAlbum]
+
+class AppleMusicArtistRelationships(BaseModel):
+    catalog: AppleMusicArtistCatalogRelationship | None = None
+    albums: AppleMusicArtistAlbumRelationship | None = None
+
+class AppleMusicArtistAttributes(BaseModel):
+    artwork: AppleMusicArtwork
+    name: str
+
+class AppleMusicArtist(BaseModel):
+    id: str
+    attributes: AppleMusicArtistAttributes
+    relationships: AppleMusicArtistRelationships | None = None
+
+class AppleMusicArtistResponse(BaseModel):
+    data: list[AppleMusicArtist]

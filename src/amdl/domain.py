@@ -48,5 +48,11 @@ class Album(DomainModel):
     tracks: list[Track] = Field(default_factory=list)
 
 
+class Artist(BaseModel):
+    artist_id: str
+    name: str
+    artwork_url: str
+    albums: list[Album]
+
 class Playback(BaseModel):
     songs: list[AppleMusicPlaybackSong]
