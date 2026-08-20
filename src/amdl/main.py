@@ -14,16 +14,31 @@ def main() -> None:
         auth.clear_credentials()
         return
 
-    assert args.url is not None
-    url_type, am_id = parse_apple_music_url(args.url)
+    if not args.url:
+        raise SystemExit("Error: A valid Apple Music URL is required.")
 
     if not auth.login():
         raise SystemExit("Authentication failed")
 
+    url_type, am_id = parse_apple_music_url(args.url)
     config_dir = Path(SAVE_DIRECTORY).expanduser() if SAVE_DIRECTORY else None
     output_dir = args.directory or config_dir or Path.cwd()
 
-    Downloader(auth).download(url_type, am_id, output_dir, args.only_artwork, args.url)
+    downloader = Downloader(auth)
+    if args.only_artwork:
+        downloader.art(url_type, am_id, output_dir)
+    else:
+        downloader.media(url_type, am_id, output_dir, args.url)
+
+    # match (args.only_artwork, url_type):
+    #     case (True, AppleMusicUrlType.ALBUM):
+    #         downloader.album_artwork(am_id, output_dir)
+    #     case (True, AppleMusicUrlType.SONG):
+    #         downloader.track_artwork(am_id, output_dir)
+    #     case (False, AppleMusicUrlType.ALBUM):
+    #         downloader.album(am_id, output_dir, args.url)
+    #     case (False, AppleMusicUrlType.SONG):
+    #         downloader.track(am_id, output_dir, args.url)
 
 
 if __name__ == "__main__":
