@@ -54,5 +54,31 @@ class Artist(BaseModel):
     artwork_url: str
     albums: list[Album]
 
+
 class Playback(BaseModel):
     songs: list[AppleMusicPlaybackSong]
+
+
+class Profile(BaseModel):
+    username: str
+    handle: str
+    artwork_url: str
+
+
+class Playlist(BaseModel):
+    id: str
+    name: str
+    artwork_url: str
+    tracks: list[Track] = Field(default_factory=list)
+
+
+class Pin(BaseModel):
+    id: str
+    type: str
+    name: str
+    artwork_url: str | None = None
+    artist_name: str | None = None
+    track: Track | None = None
+    album: Album | None = None
+    artist: Artist | None = None
+    playlist: Playlist | None = None

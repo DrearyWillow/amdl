@@ -4,7 +4,7 @@ from pathlib import Path
 
 # from typing import Protocol
 from amdl.apple_music import AppleMusicAuthenticator, AppleMusicClient, AppleMusicUrlType
-from amdl.domain import Album, Track
+from amdl.domain import Album, Playlist, Track
 from amdl.media import (
     HLSManifest,
     MediaDownloader,
@@ -16,7 +16,13 @@ from amdl.media import (
     track_artwork_path,
     track_path,
 )
-from amdl.media.paths import artist_artwork_path
+from amdl.media.paths import (
+    artist_artwork_path,
+    pin_artwork_path,
+    playlist_artwork_path,
+    playlist_track_path,
+    profile_artwork_path,
+)
 
 
 class Downloader:
@@ -65,6 +71,9 @@ class TrackDownloader:
 
     def media(self, track_id: str, output_dir: Path, input_url: str, /) -> None:
         track = self.parent.client.get_track(track_id)
+        self.download_track(track, output_dir, input_url)
+
+    def download_track(self, track: Track, output_dir: Path, input_url: str) -> None:
         output_path = track_path(output_dir, track)
         url = str(track.url or input_url)
         artwork = self.parent.client.fetch_content(track.artwork_url)
@@ -131,3 +140,71 @@ class ArtistDownloader:
         artwork = self.parent.client.fetch_content(artist.artwork_url)
         output_path = artist_artwork_path(output_dir, artist)
         save_artwork(artwork, output_path)
+
+
+class PlaylistDownloader:
+    def __init__(self, parent: Downloader) -> None:
+        self.parent: Downloader = parent
+
+    def media(self, playlist_id: str, output_dir: Path, input_url: str, /) -> None:
+        playlist = self.parent.client.get_playlist(playlist_id)
+        self.download_tracks(playlist, output_dir, input_url)
+
+    def download_tracks(self, playlist: Playlist, output_dir: Path, input_url: str) -> None:
+        work_list = tuple(enumerate(playlist.tracks, 1))
+
+        def process_track(work_list: tuple[Track, int]) -> None:
+            track, track_number = work_list
+            url = str(track.url) if track.url else input_url
+            output_path = playlist_track_path(output_dir, playlist, track, track_number)
+            artwork = self.parent.client.fetch_content(track.artwork_url)
+            self.parent.download_track_audio(track, output_path)
+            embed_track_metadata(track, output_path, url, artwork)
+
+        with ThreadPoolExecutor(max_workers=8) as executor:
+            _ = list(executor.map(process_track, work_list))
+
+    def art(self, playlist_id: str, output_dir: Path, /) -> None:
+        playlist = self.parent.client.get_playlist(playlist_id)  # TODO: this could be significantly cheaper
+        artwork = self.parent.client.fetch_content(playlist.artwork_url)
+        output_path = playlist_artwork_path(output_dir, playlist)
+        save_artwork(artwork, output_path)
+
+
+class ProfileDownloader:
+    def __init__(self, parent: Downloader) -> None:
+        self.parent: Downloader = parent
+
+    def media(self, handle: str, output_dir: Path, input_url: str, /) -> None:
+        # TODO: download all public playlists?
+        _ = input_url
+        self.art(handle, output_dir)
+
+    def art(self, handle: str, output_dir: Path, /) -> None:
+        profile = self.parent.client.get_profile(handle)
+        artwork = self.parent.client.fetch_content(profile.artwork_url)
+        output_path = profile_artwork_path(output_dir, profile)
+        save_artwork(artwork, output_path)
+
+
+class PinsDownloader:
+    def __init__(self, parent: Downloader) -> None:
+        self.parent: Downloader = parent
+
+    def media(self, _: str, output_dir: Path, input_url: str, /) -> None:
+        for pin in self.parent.client.get_pins():
+            if pin.track:
+                TrackDownloader(self.parent).download_track(pin.track, output_dir, input_url)
+            elif pin.album:
+                AlbumDownloader(self.parent).download_tracks([pin.album], output_dir, input_url)
+            elif pin.artist:
+                AlbumDownloader(self.parent).download_tracks(pin.artist.albums, output_dir, input_url)
+            elif pin.playlist:
+                PlaylistDownloader(self.parent).download_tracks(pin.playlist, output_dir, input_url)
+
+    def art(self, output_dir: Path, /) -> None:
+        for pin in self.parent.client.get_pins():
+            if pin.artwork_url:
+                artwork = self.parent.client.fetch_content(pin.artwork_url)
+                output_path = pin_artwork_path(output_dir, pin)
+                save_artwork(artwork, output_path)

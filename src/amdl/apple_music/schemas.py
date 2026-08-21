@@ -4,6 +4,60 @@ from typing import ClassVar
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl, field_validator
 
 
+class AppleMusicArtwork(BaseModel):
+    url: str
+
+    @field_validator("url", mode="before")
+    @classmethod
+    def assign_dimensions(cls, url: str) -> str:
+        return url.replace("{w}", "9999").replace("{h}", "9999").replace("{c}", "bb")
+
+
+class AppleMusicPlayParams(BaseModel):
+    id: str
+    catalog_id: str | None = Field(default=None, alias="catalogId")
+
+    model_config: ClassVar[ConfigDict] = ConfigDict(populate_by_name=True)
+
+
+# License
+
+
+class AppleMusicLicenseResponse(BaseModel):
+    status: int
+    license: str
+
+
+# Playback
+
+
+class AppleMusicPlaybackAsset(BaseModel):
+    flavor: str
+    url: HttpUrl = Field(alias="URL")
+
+    model_config: ClassVar[ConfigDict] = ConfigDict(populate_by_name=True)
+
+
+class AppleMusicPlaybackSong(BaseModel):
+    assets: list[AppleMusicPlaybackAsset]
+
+
+class AppleMusicPlaybackDialog(BaseModel):
+    message: str | None = None
+
+
+class AppleMusicPlaybackResponse(BaseModel):
+    customer_message: str | None = Field(default=None, alias="customerMessage")
+    failure_type: str | None = Field(default=None, alias="failureType")
+    dialog: AppleMusicPlaybackDialog | None = None
+    song_list: list[AppleMusicPlaybackSong] | None = Field(default=None, alias="songList")
+
+    model_config: ClassVar[ConfigDict] = ConfigDict(populate_by_name=True)
+
+
+# Album
+
+
 class AppleMusicAlbumAttributes(BaseModel):
     name: str
     artist_name: str = Field(alias="artistName")
@@ -38,49 +92,7 @@ class AppleMusicAlbumResponse(BaseModel):
     data: list[AppleMusicAlbum]
 
 
-class AppleMusicArtwork(BaseModel):
-    url: str
-
-    @field_validator("url", mode="before")
-    @classmethod
-    def artwork_url(cls, url: str) -> str:
-        return url.replace("{w}", "9999").replace("{h}", "9999").replace("{c}", "bb")
-
-
-class AppleMusicPlayParams(BaseModel):
-    id: str
-    catalog_id: str | None = Field(default=None, alias="catalogId")
-
-    model_config: ClassVar[ConfigDict] = ConfigDict(populate_by_name=True)
-
-
-class AppleMusicLicenseResponse(BaseModel):
-    status: int
-    license: str
-
-
-class AppleMusicPlaybackAsset(BaseModel):
-    flavor: str
-    url: HttpUrl = Field(alias="URL")
-
-    model_config: ClassVar[ConfigDict] = ConfigDict(populate_by_name=True)
-
-
-class AppleMusicPlaybackSong(BaseModel):
-    assets: list[AppleMusicPlaybackAsset]
-
-
-class AppleMusicPlaybackDialog(BaseModel):
-    message: str | None = None
-
-
-class AppleMusicPlaybackResponse(BaseModel):
-    customer_message: str | None = Field(default=None, alias="customerMessage")
-    failure_type: str | None = Field(default=None, alias="failureType")
-    dialog: AppleMusicPlaybackDialog | None = None
-    song_list: list[AppleMusicPlaybackSong] | None = Field(default=None, alias="songList")
-
-    model_config: ClassVar[ConfigDict] = ConfigDict(populate_by_name=True)
+# Track
 
 
 class AppleMusicTrackAttributes(BaseModel):
@@ -119,25 +131,99 @@ class AppleMusicTrackResponse(BaseModel):
     data: list[AppleMusicTrack]
 
 
+# Artist
+
 
 class AppleMusicArtistCatalogRelationship(BaseModel):
     data: list[AppleMusicArtist]
 
+
 class AppleMusicArtistAlbumRelationship(BaseModel):
     data: list[AppleMusicAlbum]
+
 
 class AppleMusicArtistRelationships(BaseModel):
     catalog: AppleMusicArtistCatalogRelationship | None = None
     albums: AppleMusicArtistAlbumRelationship | None = None
 
+
 class AppleMusicArtistAttributes(BaseModel):
     artwork: AppleMusicArtwork
     name: str
+
 
 class AppleMusicArtist(BaseModel):
     id: str
     attributes: AppleMusicArtistAttributes
     relationships: AppleMusicArtistRelationships | None = None
 
+
 class AppleMusicArtistResponse(BaseModel):
     data: list[AppleMusicArtist]
+
+
+# Profile
+
+
+class AppleMusicProfileAttributes(BaseModel):
+    artwork: AppleMusicArtwork
+    handle: str
+    name: str
+
+
+class AppleMusicProfile(BaseModel):
+    attributes: AppleMusicProfileAttributes
+
+
+class AppleMusicProfileResponse(BaseModel):
+    data: list[AppleMusicProfile]
+
+
+# Pin
+
+
+class AppleMusicPinCatalogRelationship(BaseModel):
+    data: list[AppleMusicArtist] | None = None
+
+
+class AppleMusicPinRelationships(BaseModel):
+    catalog: AppleMusicPinCatalogRelationship | None = None
+
+
+class AppleMusicPinAttributes(BaseModel):
+    artist_name: str | None = Field(default=None, alias="artistName")
+    artwork: AppleMusicArtwork | None = None
+    name: str
+
+
+class AppleMusicPin(BaseModel):
+    relationships: AppleMusicPinRelationships | None = None
+    attributes: AppleMusicPinAttributes
+    id: str
+    type: str
+
+
+class AppleMusicPinsResponse(BaseModel):
+    data: list[AppleMusicPin]
+
+
+# Playlist
+
+
+class AppleMusicPlaylistTracksResponse(BaseModel):
+    next: str
+    data: list[AppleMusicTrack]
+
+
+class AppleMusicPlaylistAttributes(BaseModel):
+    artwork: AppleMusicArtwork
+    name: str
+
+
+class AppleMusicPlaylist(BaseModel):
+    id: str
+    attributes: AppleMusicPlaylistAttributes
+
+
+class AppleMusicPlaylistResponse(BaseModel):
+    data: list[AppleMusicPlaylist]
