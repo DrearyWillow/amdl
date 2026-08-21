@@ -61,7 +61,7 @@ class AppleMusicPlaybackResponse(BaseModel):
 class AppleMusicAlbumAttributes(BaseModel):
     name: str
     artist_name: str = Field(alias="artistName")
-    release_date: date = Field(alias="releaseDate")
+    release_date: date | None = Field(default=None, alias="releaseDate")
     artwork: AppleMusicArtwork
     url: HttpUrl | None = None
 
@@ -71,6 +71,13 @@ class AppleMusicAlbumAttributes(BaseModel):
     @classmethod
     def strip_single_ep(cls, name: str) -> str:
         return name.removesuffix(" - Single").removesuffix(" - EP")
+
+    @field_validator("release_date", mode="before")
+    @classmethod
+    def normalize_release_date(cls, value: str | date) -> str | date:
+        if isinstance(value, str) and len(value) == 4 and value.isdigit():
+            return date(int(value), 1, 1)
+        return value
 
 
 class AppleMusicAlbumCatalogRelationship(BaseModel):
@@ -100,7 +107,7 @@ class AppleMusicTrackAttributes(BaseModel):
     artist_name: str = Field(alias="artistName")
     album_name: str = Field(alias="albumName")
     track_number: int = Field(alias="trackNumber")
-    release_date: date = Field(alias="releaseDate")
+    release_date: date | None = Field(default=None, alias="releaseDate")
     artwork: AppleMusicArtwork
     play_params: AppleMusicPlayParams = Field(alias="playParams")
     url: HttpUrl | None = None
@@ -111,6 +118,13 @@ class AppleMusicTrackAttributes(BaseModel):
     @classmethod
     def strip_single_ep(cls, name: str) -> str:
         return name.removesuffix(" - Single").removesuffix(" - EP")
+
+    @field_validator("release_date", mode="before")
+    @classmethod
+    def normalize_release_date(cls, value: str | date) -> str | date:
+        if isinstance(value, str) and len(value) == 4 and value.isdigit():
+            return date(int(value), 1, 1)
+        return value
 
 
 class AppleMusicTrackCatalogRelationship(BaseModel):

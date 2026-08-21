@@ -32,9 +32,9 @@ class Track(DomainModel):
     artist_name: str
     album_name: str
     track_number: int
-    release_date: date
+    release_date: date | None = None
     artwork_url: str
-    url: HttpUrl | None
+    url: HttpUrl | None = None
 
 
 class Album(DomainModel):
@@ -42,7 +42,7 @@ class Album(DomainModel):
     catalog_id: str | None = None
     name: str
     artist_name: str
-    release_date: date
+    release_date: date | None = None
     artwork_url: str
     url: HttpUrl | None = None
     tracks: list[Track] = Field(default_factory=list)
