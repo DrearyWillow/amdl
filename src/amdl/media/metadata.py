@@ -32,7 +32,13 @@ def embed_track_metadata(track: Track, path: Path, url: str | None = None, artwo
 
 
 def save_artwork(image_bytes: bytes, output_path: Path) -> None:
+    if output_path.exists():
+        logger.info(f"Skipping artwork: {output_path} already exists")
+        return
+
     output_path.parent.mkdir(parents=True, exist_ok=True)
+
     with output_path.open("wb") as file:
         _ = file.write(image_bytes)
+
     logger.info(f"Downloaded artwork to {output_path}")
