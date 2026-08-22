@@ -1,8 +1,9 @@
 from collections.abc import Generator
 from concurrent.futures import ThreadPoolExecutor
+from enum import Enum, auto
 from pathlib import Path
+from typing import Protocol
 
-# from typing import Protocol
 from amdl.apple_music import AppleMusicAuthenticator, AppleMusicClient, AppleMusicUrlType
 from amdl.domain import Album, Playlist, Track
 from amdl.media import (
@@ -25,25 +26,79 @@ from amdl.media.paths import (
 )
 
 
+class DownloadType(Enum):
+    MEDIA = auto()
+    ART = auto()
+
+
+class DownloaderProtocol(Protocol):
+    def __init__(self, parent: Downloader) -> None: ...
+    def media(self, am_id: str, output_dir: Path, input_url: str, /) -> None: ...
+    def art(self, am_id: str, output_dir: Path, /) -> None: ...
+
+
 class Downloader:
     def __init__(self, auth: AppleMusicAuthenticator) -> None:
         self.client: AppleMusicClient = AppleMusicClient(auth)
         self.media_downloader: MediaDownloader = MediaDownloader(self.client)
         self.drm: WidevineDRM = WidevineDRM(self.client)
+        self._downloaders: dict[AppleMusicUrlType, type[DownloaderProtocol]] = {
+            AppleMusicUrlType.ALBUM: AlbumDownloader,
+            AppleMusicUrlType.LIBRARY_ALBUM: AlbumDownloader,
+            AppleMusicUrlType.SONG: TrackDownloader,
+            AppleMusicUrlType.LIBRARY_SONG: TrackDownloader,
+            AppleMusicUrlType.ARTIST: ArtistDownloader,
+            AppleMusicUrlType.LIBRARY_ARTIST: ArtistDownloader,
+            AppleMusicUrlType.PLAYLIST: PlaylistDownloader,
+            AppleMusicUrlType.LIBRARY_PLAYLIST: PlaylistDownloader,
+            AppleMusicUrlType.PROFILE: ProfileDownloader,
+        }
+
+    def download(
+        self, dl_type: DownloadType, am_type: AppleMusicUrlType, am_id: str, dir: Path, input_url: str
+    ) -> None:
+        downloader_type = self._downloaders.get(am_type)
+
+        if downloader_type is None:
+            raise NotImplementedError(f"URL `{am_type.name}` not supported")
+
+        downloader = downloader_type(self)
+
+        match dl_type:
+            case DownloadType.MEDIA:
+                downloader.media(am_id, dir, input_url)
+            case DownloadType.ART:
+                downloader.art(am_id, dir)
 
     def media(self, am_type: AppleMusicUrlType, am_id: str, output_dir: Path, input_url: str) -> None:
         match am_type:
-            case AppleMusicUrlType.ALBUM:
+            case AppleMusicUrlType.ALBUM | AppleMusicUrlType.LIBRARY_ALBUM:
                 AlbumDownloader(self).media(am_id, output_dir, input_url)
-            case AppleMusicUrlType.SONG:
+            case AppleMusicUrlType.SONG | AppleMusicUrlType.LIBRARY_SONG:
                 TrackDownloader(self).media(am_id, output_dir, input_url)
+            case AppleMusicUrlType.ARTIST | AppleMusicUrlType.LIBRARY_ARTIST:
+                ArtistDownloader(self).media(am_id, output_dir, input_url)
+            case AppleMusicUrlType.PLAYLIST | AppleMusicUrlType.LIBRARY_PLAYLIST:
+                PlaylistDownloader(self).media(am_id, output_dir, input_url)
+            case AppleMusicUrlType.PROFILE:
+                ProfileDownloader(self).media(am_id, output_dir, input_url)
+            case _:
+                raise NotImplementedError(f"URL `{am_type.name}` not supported")
 
     def art(self, am_type: AppleMusicUrlType, am_id: str, output_dir: Path) -> None:
         match am_type:
-            case AppleMusicUrlType.ALBUM:
+            case AppleMusicUrlType.ALBUM | AppleMusicUrlType.LIBRARY_ALBUM:
                 AlbumDownloader(self).art(am_id, output_dir)
-            case AppleMusicUrlType.SONG:
+            case AppleMusicUrlType.SONG | AppleMusicUrlType.LIBRARY_SONG:
                 TrackDownloader(self).art(am_id, output_dir)
+            case AppleMusicUrlType.ARTIST | AppleMusicUrlType.LIBRARY_ARTIST:
+                ArtistDownloader(self).art(am_id, output_dir)
+            case AppleMusicUrlType.PLAYLIST | AppleMusicUrlType.LIBRARY_PLAYLIST:
+                PlaylistDownloader(self).art(am_id, output_dir)
+            case AppleMusicUrlType.PROFILE:
+                ProfileDownloader(self).art(am_id, output_dir)
+            case _:
+                raise NotImplementedError(f"URL `{am_type.name}` not supported")
 
     def download_track_audio(self, track: Track, output_path: Path) -> None:
         output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -58,11 +113,6 @@ class Downloader:
         self.media_downloader.download_and_decrypt(media_url, output_path, kid, key)
 
         print(f"Downloaded track {track.id} to {output_path}")
-
-
-# class DownloadHandler(Protocol):
-#     def media(self, am_id: str, output_dir: Path, input_url: str) -> None: ...
-#     def art(self, am_id: str, output_dir: Path) -> None: ...
 
 
 class TrackDownloader:
