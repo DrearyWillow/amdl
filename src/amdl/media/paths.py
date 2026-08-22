@@ -1,7 +1,7 @@
 import re
 from pathlib import Path
 
-from amdl.domain import Album, Artist, Playlist, Track
+from amdl.domain import Album, Playlist, Track
 
 AUDIO = "m4a"
 IMAGE = "jpg"
@@ -20,12 +20,6 @@ def track_path(output_dir: Path, track: Track) -> Path:
     return output_dir / artist / f"{song}.{AUDIO}"
 
 
-def track_artwork_path(output_dir: Path, track: Track) -> Path:
-    artist = sanitize_filename_component(track.artist_name)
-    song = sanitize_filename_component(track.name)
-    return output_dir / f"{artist} - {song}.{IMAGE}"
-
-
 def album_track_path(output_dir: Path, album: Album, track: Track) -> Path:
     artist = sanitize_filename_component(album.artist_name)
     album_name = sanitize_filename_component(album.name)
@@ -36,12 +30,7 @@ def album_track_path(output_dir: Path, album: Album, track: Track) -> Path:
 def album_artwork_path(output_dir: Path, album: Album) -> Path:
     artist = sanitize_filename_component(album.artist_name)
     album_name = sanitize_filename_component(album.name)
-    return output_dir / artist / f"{album_name}.{IMAGE}"
-
-
-def artist_artwork_path(output_dir: Path, artist: Artist) -> Path:
-    name = sanitize_filename_component(artist.name)
-    return output_dir / name / f"{name}.{IMAGE}"
+    return output_dir / artist / album_name / f"cover.{IMAGE}"
 
 
 def playlist_track_path(output_dir: Path, playlist: Playlist, track: Track, track_number: int) -> Path:

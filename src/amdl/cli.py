@@ -9,7 +9,6 @@ from typing import cast
 class Arguments:
     url: str | None
     directory: Path | None
-    only_artwork: bool
     logout: bool
     debug: bool
 
@@ -31,14 +30,10 @@ class ArgParser:
             parser.error("--logout cannot be used with a URL")
         if arguments.logout and arguments.directory is not None:
             parser.error("--logout cannot be used with --directory")
-        if arguments.logout and arguments.only_artwork:
-            parser.error("--logout cannot be used with --artwork")
         if arguments.url is None and not arguments.logout:
             parser.error("a URL is required unless --logout or --pins is specified")
         if arguments.directory is not None and arguments.url is None:
             parser.error("--directory requires a URL")
-        if arguments.only_artwork and arguments.url is None:
-            parser.error("--artwork requires a URL")
 
     @classmethod
     def parse(cls) -> Arguments:
@@ -48,7 +43,6 @@ class ArgParser:
         arguments = Arguments(
             url=cast(str | None, args.url),
             directory=cast(Path | None, args.directory),
-            only_artwork=cast(bool, args.only_artwork),
             logout=cast(bool, args.logout),
             debug=cast(bool, args.debug),
         )
