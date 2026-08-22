@@ -1,3 +1,4 @@
+import logging
 from collections.abc import Generator
 from concurrent.futures import ThreadPoolExecutor
 from enum import Enum, auto
@@ -24,6 +25,8 @@ from amdl.media.paths import (
     playlist_track_path,
     profile_artwork_path,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class DownloadType(Enum):
@@ -79,7 +82,7 @@ class Downloader:
 
     def download_track_audio(self, track: Track, output_path: Path) -> None:
         if output_path.exists():
-            print(f"Skipping track {track.id}: {output_path} already exists")
+            logger.info(f"Skipping track {track.id}: {output_path} already exists")
             return
 
         output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -93,7 +96,7 @@ class Downloader:
         key = self.drm.get_content_key(kid, track.id)
         self.media_downloader.download_and_decrypt(media_url, output_path, kid, key)
 
-        print(f"Downloaded track {track.id} to {output_path}")
+        logger.info(f"Downloaded track {track.id} to {output_path}")
 
     def try_download_track(self, track: Track, output_path: Path, url: str, artwork: bytes | None = None) -> None:
         try:
@@ -102,7 +105,7 @@ class Downloader:
             self.download_track_audio(track, output_path)
             embed_track_metadata(track, output_path, url, artwork)
         except ValueError as e:
-            print(f"Skipping track {track.id}: {e}")
+            logger.info(f"Skipping track {track.id}: {e}")
 
 
 class TrackDownloader:

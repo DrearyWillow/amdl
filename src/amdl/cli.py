@@ -1,3 +1,4 @@
+import logging
 from argparse import ArgumentParser
 from dataclasses import dataclass
 from pathlib import Path
@@ -11,6 +12,7 @@ class Arguments:
     only_artwork: bool
     logout: bool
     pins: bool
+    debug: bool
 
 
 class ArgParser:
@@ -20,13 +22,9 @@ class ArgParser:
         _ = parser.add_argument("url", nargs="?", help="Apple Music URL to download")
         _ = parser.add_argument("-d", "--directory", type=Path, help="Directory to download to")
         _ = parser.add_argument("--logout", action="store_true", help="Clear stored Apple Music credentials")
-        _ = parser.add_argument(
-            "--art",
-            dest="only_artwork",
-            action="store_true",
-            help="Only download artwork",
-        )
+        _ = parser.add_argument("--art", dest="only_artwork", action="store_true", help="Only download artwork")
         _ = parser.add_argument("--pins", action="store_true", help="Download authenticated pins")
+        _ = parser.add_argument("--debug", action="store_true", help="Display debug logging")
         return parser
 
     @staticmethod
@@ -53,12 +51,32 @@ class ArgParser:
         parser = cls.create_parser()
         args = parser.parse_args()
 
-        url = cast(str | None, args.url)
-        directory = cast(Path | None, args.directory)
-        only_artwork = cast(bool, args.only_artwork)
-        logout = cast(bool, args.logout)
-        pins = cast(bool, args.pins)
+        arguments = Arguments(
+            url=cast(str | None, args.url),
+            directory=cast(Path | None, args.directory),
+            only_artwork=cast(bool, args.only_artwork),
+            logout=cast(bool, args.logout),
+            pins=cast(bool, args.pins),
+            debug=cast(bool, args.debug),
+        )
 
-        arguments = Arguments(url, directory, only_artwork, logout, pins)
         cls.validate(arguments, parser)
         return arguments
+
+
+def define_logger(debug_mode: bool) -> None:
+    RESET = "\033[0m"
+    # RED = "\033[31m"
+    # GREEN = "\033[32m"
+    # YELLOW = "\033[33m"
+    # BLUE = "\033[34m"
+    MAGENTA = "\033[35m"
+    CYAN = "\033[36m"
+    WHITE = "\033[37m"
+
+    if not debug_mode:
+        logging.basicConfig(format="%(message)s", level=logging.INFO)
+        return
+
+    fmt = f"{CYAN}%(asctime)s:%(msecs)03d{RESET} {WHITE}%(levelname)s{RESET} {MAGENTA}%(name)s{RESET} %(message)s"
+    logging.basicConfig(format=fmt, level=logging.DEBUG, datefmt="%H:%M:%S")

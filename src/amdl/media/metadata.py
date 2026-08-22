@@ -1,8 +1,11 @@
+import logging
 from pathlib import Path
 
 from mutagen.mp4 import MP4, MP4Cover
 
 from amdl.domain import Track
+
+logger = logging.getLogger(__name__)
 
 
 def embed_track_metadata(track: Track, path: Path, url: str | None = None, artwork: bytes | None = None) -> None:
@@ -32,4 +35,4 @@ def save_artwork(image_bytes: bytes, output_path: Path) -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with output_path.open("wb") as file:
         _ = file.write(image_bytes)
-    print(f"Downloaded artwork to {output_path}")
+    logger.info(f"Downloaded artwork to {output_path}")

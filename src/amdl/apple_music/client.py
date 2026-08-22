@@ -1,4 +1,5 @@
 import base64
+import logging
 from collections.abc import Mapping
 from typing import cast
 from urllib.parse import parse_qs, urlparse
@@ -28,6 +29,7 @@ from amdl.config import (
 from amdl.domain import Album, Artist, Pin, Playback, Playlist, Profile, Track
 from amdl.json_type import JSON
 
+logger = logging.getLogger(__name__)
 
 class AppleMusicClient:
     def __init__(self, auth: AppleMusicAuthenticator) -> None:
@@ -54,7 +56,6 @@ class AppleMusicClient:
 
     def get(self, url: str, params: Mapping[str, str | int] | None = None) -> JSON:
         response = self.http.get(url, headers=self.headers(), params=params)
-        print(f"{url} (GET) -> {response.status_code}")
         response.raise_for_status()
         return cast(JSON, response.json())
 
