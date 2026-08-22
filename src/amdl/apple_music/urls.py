@@ -15,7 +15,6 @@ class AppleMusicType(Enum):
     LIBRARY_ARTIST = auto()
     LIBRARY_PLAYLIST = auto()
 
-    PINS = auto()
     PROFILE = auto()
     MUSIC_VIDEO = auto()
     STATION = auto()

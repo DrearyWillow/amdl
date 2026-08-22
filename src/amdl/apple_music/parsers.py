@@ -5,16 +5,13 @@ from amdl.apple_music.schemas import (
     AppleMusicArtist,
     AppleMusicArtistResponse,
     AppleMusicLicenseResponse,
-    AppleMusicPinsResponse,
     AppleMusicPlaybackResponse,
     AppleMusicPlaylist,
     AppleMusicPlaylistResponse,
-    AppleMusicProfile,
-    AppleMusicProfileResponse,
     AppleMusicTrack,
     AppleMusicTrackResponse,
 )
-from amdl.domain import Album, Artist, Pin, Playback, Playlist, Profile, Track
+from amdl.domain import Album, Artist, Playback, Playlist, Track
 from amdl.json_type import JSON
 
 
@@ -104,23 +101,6 @@ class AppleMusicArtistParser:
 
         return catalog.data[0]
 
-
-class AppleMusicProfileParser:
-    @classmethod
-    def parse(cls, data: JSON) -> Profile:
-        response = AppleMusicProfileResponse.model_validate(data)
-        resource = response.data[0]
-        return cls.parse_profile(resource)
-
-    @classmethod
-    def parse_profile(cls, resource: AppleMusicProfile) -> Profile:
-        return Profile(
-            username=resource.attributes.name,
-            handle=resource.attributes.handle,
-            artwork_url=resource.attributes.artwork.url,
-        )
-
-
 class AppleMusicPlaylistParser:
     @classmethod
     def parse(cls, data: JSON) -> Playlist:
@@ -135,21 +115,6 @@ class AppleMusicPlaylistParser:
             name=resource.attributes.name,
             artwork_url=resource.attributes.artwork.url,
         )
-
-
-class AppleMusicPinsParser:
-    @classmethod
-    def parse(cls, data: JSON) -> list[Pin]:
-        response = AppleMusicPinsResponse.model_validate(data)
-        return [
-            Pin(
-                id=resource.id,
-                type=resource.type,
-                name=resource.attributes.name,
-                artist_name=resource.attributes.artist_name,
-            )
-            for resource in response.data
-        ]
 
 
 class AppleMusicPlaybackParser:

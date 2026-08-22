@@ -12,10 +12,8 @@ from amdl.apple_music.parsers import (
     AppleMusicAlbumParser,
     AppleMusicArtistParser,
     AppleMusicLicenseParser,
-    AppleMusicPinsParser,
     AppleMusicPlaybackParser,
     AppleMusicPlaylistParser,
-    AppleMusicProfileParser,
     AppleMusicTrackParser,
 )
 from amdl.apple_music.schemas import AppleMusicPlaylistTracksResponse
@@ -26,7 +24,7 @@ from amdl.config import (
     WEB_PLAYBACK_URL,
     WIDEVINE_CERT_URL,
 )
-from amdl.domain import Album, Artist, Pin, Playback, Playlist, Profile, Track
+from amdl.domain import Album, Artist, Playback, Playlist, Track
 from amdl.json_type import JSON
 
 logger = logging.getLogger(__name__)
@@ -114,43 +112,6 @@ class AppleMusicClient:
         playlist = AppleMusicPlaylistParser.parse(self.get(f"{APPLE_MUSIC_API}/me/library/playlists/{playlist_id}"))
         playlist.tracks = get_playlist_tracks(playlist_id)
         return playlist
-
-    def get_pins(self) -> list[Pin]:
-        response = self.get(
-            f"{APPLE_MUSIC_API}/me/library/pins",
-            params={"limit": 6, "include[library-artists]": "artists,catalog"},
-        )
-        pins = AppleMusicPinsParser.parse(response)
-
-        for pin in pins:
-            match pin.type:
-                case "library-songs":
-                    pin.track = self.get_track(pin.id)
-                    pin.artwork_url = pin.track.artwork_url
-                case "library-albums":
-                    pin.album = self.get_album(pin.id)
-                    pin.artwork_url = pin.album.artwork_url
-                case "library-artists":
-                    pin.artist = self.get_artist(pin.id)
-                    pin.artwork_url = None  # TODO ?
-                case "library-playlists":
-                    pin.playlist = self.get_playlist(pin.id)
-                    pin.artwork_url = pin.playlist.artwork_url
-                case _:
-                    raise ValueError(f"Unrecognized pin type `{pin.type}` for `{pin.name}`")
-
-        return pins
-
-    def get_profile_me(self) -> Profile:
-        return AppleMusicProfileParser.parse(self.get(f"{APPLE_MUSIC_API}/me/social/profile"))
-
-    def get_profile(self, handle: str) -> Profile:
-        return AppleMusicProfileParser.parse(
-            self.get(
-                f"{APPLE_MUSIC_API}/social/us/social-profiles",
-                params={"filter[handle]": handle},
-            )
-        )
 
     def get_service_certificate(self) -> bytes:
         return self.http.get(WIDEVINE_CERT_URL).content

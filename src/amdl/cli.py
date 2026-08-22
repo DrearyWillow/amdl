@@ -11,7 +11,6 @@ class Arguments:
     directory: Path | None
     only_artwork: bool
     logout: bool
-    pins: bool
     debug: bool
 
 
@@ -23,7 +22,6 @@ class ArgParser:
         _ = parser.add_argument("-d", "--directory", type=Path, help="Directory to download to")
         _ = parser.add_argument("--logout", action="store_true", help="Clear stored Apple Music credentials")
         _ = parser.add_argument("--art", dest="only_artwork", action="store_true", help="Only download artwork")
-        _ = parser.add_argument("--pins", action="store_true", help="Download authenticated pins")
         _ = parser.add_argument("--debug", action="store_true", help="Display debug logging")
         return parser
 
@@ -35,16 +33,12 @@ class ArgParser:
             parser.error("--logout cannot be used with --directory")
         if arguments.logout and arguments.only_artwork:
             parser.error("--logout cannot be used with --artwork")
-        if arguments.logout and arguments.pins:
-            parser.error("--logout cannot be used with --pins")
-        if arguments.url is None and not (arguments.logout or arguments.pins):
+        if arguments.url is None and not arguments.logout:
             parser.error("a URL is required unless --logout or --pins is specified")
         if arguments.directory is not None and arguments.url is None:
             parser.error("--directory requires a URL")
         if arguments.only_artwork and arguments.url is None:
             parser.error("--artwork requires a URL")
-        if arguments.pins and arguments.url:
-            parser.error("--pins cannot be used with a URL")
 
     @classmethod
     def parse(cls) -> Arguments:
@@ -56,7 +50,6 @@ class ArgParser:
             directory=cast(Path | None, args.directory),
             only_artwork=cast(bool, args.only_artwork),
             logout=cast(bool, args.logout),
-            pins=cast(bool, args.pins),
             debug=cast(bool, args.debug),
         )
 
@@ -66,10 +59,6 @@ class ArgParser:
 
 def define_logger(debug_mode: bool) -> None:
     RESET = "\033[0m"
-    # RED = "\033[31m"
-    # GREEN = "\033[32m"
-    # YELLOW = "\033[33m"
-    # BLUE = "\033[34m"
     MAGENTA = "\033[35m"
     CYAN = "\033[36m"
     WHITE = "\033[37m"

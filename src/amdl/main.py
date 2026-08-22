@@ -7,7 +7,7 @@ from amdl.apple_music import (
 )
 from amdl.cli import ArgParser, define_logger
 from amdl.config import SAVE_DIRECTORY
-from amdl.downloader import Downloader, DownloadType, PinsDownloader
+from amdl.downloader import Downloader, DownloadType
 
 
 def main() -> None:
@@ -22,27 +22,23 @@ def main() -> None:
     if not auth.login():
         raise SystemExit("Authentication failed")
 
+    if not args.url:
+        raise SystemExit("Error: A valid Apple Music URL is required.")
+
+    am_type, resource_id = parse_apple_music_url(args.url)
     download_type = DownloadType.ART if args.only_artwork else DownloadType.MEDIA
     config_dir = Path(SAVE_DIRECTORY).expanduser() if SAVE_DIRECTORY else None
     output_dir = args.directory or config_dir or Path.cwd()
 
-    if args.pins:
-        with Downloader(auth) as d:
-            PinsDownloader(d).download(download_type, output_dir)
-        return
-
-    if not args.url:
-        raise SystemExit("Error: A valid Apple Music URL is required.")
-    am_type, resource_id = parse_apple_music_url(args.url)
-
-    if am_type in (
+    if am_type in {
+        AppleMusicType.PROFILE,
+        AppleMusicType.MUSIC_VIDEO,
+        AppleMusicType.STATION,
         AppleMusicType.CURATOR,
         AppleMusicType.APPLE_CURATOR,
         AppleMusicType.RECORD_LABEL,
-        AppleMusicType.STATION,
-        AppleMusicType.MUSIC_VIDEO,
-    ):
-        raise NotImplementedError(f"URL `{am_type.name}` not supported")
+    }:
+        raise NotImplementedError(f"URL type `{am_type.name}` not supported")
 
     with Downloader(auth) as d:
         d.download(download_type, am_type, resource_id, output_dir, args.url)

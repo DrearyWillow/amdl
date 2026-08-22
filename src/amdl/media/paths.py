@@ -1,7 +1,7 @@
 import re
 from pathlib import Path
 
-from amdl.domain import Album, Artist, Pin, Playlist, Profile, Track
+from amdl.domain import Album, Artist, Playlist, Track
 
 AUDIO = "m4a"
 IMAGE = "jpg"
@@ -55,17 +55,3 @@ def playlist_track_path(output_dir: Path, playlist: Playlist, track: Track, trac
 def playlist_artwork_path(output_dir: Path, playlist: Playlist) -> Path:
     playlist_name = sanitize_filename_component(playlist.name)
     return output_dir / playlist_name / f"cover.{IMAGE}"
-
-
-def profile_artwork_path(output_dir: Path, profile: Profile) -> Path:
-    handle = sanitize_filename_component(profile.handle)
-    username = sanitize_filename_component(profile.username)
-    return output_dir / handle / f"{username}.{IMAGE}"
-
-
-def pin_artwork_path(output_dir: Path, pin: Pin):
-    name = sanitize_filename_component(pin.name)
-    if pin.artist_name:
-        artist_name = sanitize_filename_component(pin.artist_name)
-        return output_dir / "Apple Music Pins" / f"{artist_name} - {name}.{IMAGE}"
-    return output_dir / "Apple Music Pins" / f"{name}.{IMAGE}"

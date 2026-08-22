@@ -22,10 +22,8 @@ from amdl.media import (
 )
 from amdl.media.paths import (
     artist_artwork_path,
-    pin_artwork_path,
     playlist_artwork_path,
     playlist_track_path,
-    profile_artwork_path,
 )
 
 logger = logging.getLogger(__name__)
@@ -67,7 +65,6 @@ class Downloader:
             AppleMusicType.LIBRARY_ARTIST: ArtistDownloader,
             AppleMusicType.PLAYLIST: PlaylistDownloader,
             AppleMusicType.LIBRARY_PLAYLIST: PlaylistDownloader,
-            AppleMusicType.PROFILE: ProfileDownloader,
         }
 
     def __enter__(self) -> Self:
@@ -137,6 +134,11 @@ class Downloader:
         self.media_downloader.download_and_decrypt(media_url, output_path, kid, key)
         logger.info(f"Downloaded track {track.id} to {output_path}")
 
+    def prepare_album_contexts(self, album: Album, output_dir: Path, input_url: str) -> list[TrackContext]:
+        url = str(album.url or next((t.url for t in album.tracks if t.url is not None), None) or input_url)
+        artwork = self.client.fetch_content(album.artwork_url)
+        return [TrackContext(track, album_track_path(output_dir, album, track), url, artwork) for track in album.tracks]
+
 
 class TrackDownloader:
     def __init__(self, parent: Downloader) -> None:
@@ -160,20 +162,7 @@ class AlbumDownloader:
 
     def media(self, album_id: str, output_dir: Path, input_url: str, /) -> Iterable[TrackContext]:
         album = self.parent.client.get_album(album_id)
-        return self.prepare_albums((album,), output_dir, input_url)
-
-    def prepare_albums(self, albums: Iterable[Album], output_dir: Path, input_url: str) -> list[TrackContext]:
-        with ThreadPoolExecutor(max_workers=8) as executor:
-            futures = [executor.submit(self._prepare_album, album, output_dir, input_url) for album in albums]
-            contexts: list[TrackContext] = []
-            for future in as_completed(futures):
-                contexts.extend(future.result())
-        return contexts
-
-    def _prepare_album(self, album: Album, output_dir: Path, input_url: str) -> list[TrackContext]:
-        url = str(album.url or next((track.url for track in album.tracks if track.url is not None), None) or input_url)
-        artwork = self.parent.client.fetch_content(album.artwork_url)
-        return [TrackContext(track, album_track_path(output_dir, album, track), url, artwork) for track in album.tracks]
+        return self.parent.prepare_album_contexts(album, output_dir, input_url)
 
     def art(self, album_id: str, output_dir: Path) -> None:
         album = self.parent.client.get_album(album_id)
@@ -187,7 +176,14 @@ class ArtistDownloader:
 
     def media(self, artist_id: str, output_dir: Path, input_url: str, /) -> Iterable[TrackContext]:
         artist = self.parent.client.get_artist(artist_id)
-        return AlbumDownloader(self.parent).prepare_albums(artist.albums, output_dir, input_url)
+        futures = [
+            self.parent.executor.submit(self.parent.prepare_album_contexts, album, output_dir, input_url)
+            for album in artist.albums
+        ]
+        contexts: list[TrackContext] = []
+        for future in as_completed(futures):
+            contexts.extend(future.result())
+        return contexts
 
     def art(self, artist_id: str, output_dir: Path) -> None:
         artist = self.parent.client.get_artist(artist_id)  # TODO: this could be significantly cheaper
@@ -209,62 +205,11 @@ class PlaylistDownloader:
         playlist = self.parent.client.get_playlist(playlist_id)
 
         return (
-            TrackContext(t, playlist_track_path(output_dir, playlist, t, track_num), str(t.url or input_url))
-            for track_num, t in enumerate(playlist.tracks, 1)
+            TrackContext(track, playlist_track_path(output_dir, playlist, track, num), str(track.url or input_url))
+            for num, track in enumerate(playlist.tracks, 1)
         )
 
     def art(self, playlist_id: str, output_dir: Path) -> None:
         playlist = self.parent.client.get_playlist(playlist_id)
         artwork = self.parent.client.fetch_content(playlist.artwork_url)
         save_artwork(artwork, playlist_artwork_path(output_dir, playlist))
-
-
-class ProfileDownloader:
-    def __init__(self, parent: Downloader) -> None:
-        self.parent: Downloader = parent
-
-    def media(self, handle: str, output_dir: Path, input_url: str, /) -> Iterable[TrackContext]:
-        # TODO: download all public playlists?
-        _ = input_url
-        self.art(handle, output_dir)
-        return ()
-
-    def art(self, handle: str, output_dir: Path) -> None:
-        profile = self.parent.client.get_profile(handle)
-        artwork = self.parent.client.fetch_content(profile.artwork_url)
-        save_artwork(artwork, profile_artwork_path(output_dir, profile))
-
-
-class PinsDownloader:
-    def __init__(self, parent: Downloader) -> None:
-        self.parent: Downloader = parent
-
-    def download(self, download_type: DownloadType, output_dir: Path) -> None:
-        if download_type == DownloadType.MEDIA:
-            self.parent.execute_media(self.media(output_dir))
-        elif download_type == DownloadType.ART:
-            self.art(output_dir)
-
-    def media(self, output_dir: Path, /) -> Iterable[TrackContext]:
-        fallback_url = ""  # TODO: feels bad?
-
-        album_downloader = AlbumDownloader(self.parent)
-        track_downloader = TrackDownloader(self.parent)
-        playlist_downloader = PlaylistDownloader(self.parent)
-
-        for pin in self.parent.client.get_pins():
-            if pin.track:
-                yield from track_downloader.media(pin.track.id, output_dir, fallback_url)
-            elif pin.album:
-                yield from album_downloader.prepare_albums((pin.album,), output_dir, fallback_url)
-            elif pin.artist:
-                yield from album_downloader.prepare_albums(pin.artist.albums, output_dir, fallback_url)
-            elif pin.playlist:
-                yield from playlist_downloader.media(pin.playlist.id, output_dir, fallback_url)
-
-    def art(self, output_dir: Path, /) -> None:
-        for pin in self.parent.client.get_pins():  # TODO: this could be significantly cheaper
-            if not pin.artwork_url:
-                continue
-            artwork = self.parent.client.fetch_content(pin.artwork_url)
-            save_artwork(artwork, pin_artwork_path(output_dir, pin))

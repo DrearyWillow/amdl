@@ -176,42 +176,6 @@ class AppleMusicArtistResponse(BaseModel):
     data: list[AppleMusicArtist]
 
 
-# Profile
-
-
-class AppleMusicProfileAttributes(BaseModel):
-    artwork: AppleMusicArtwork
-    handle: str
-    name: str
-
-
-class AppleMusicProfile(BaseModel):
-    attributes: AppleMusicProfileAttributes
-
-
-class AppleMusicProfileResponse(BaseModel):
-    data: list[AppleMusicProfile]
-
-
-# Pin
-
-
-class AppleMusicPinAttributes(BaseModel):
-    artist_name: str | None = Field(default=None, alias="artistName")
-    artwork: AppleMusicArtwork | None = None
-    name: str
-
-
-class AppleMusicPin(BaseModel):
-    attributes: AppleMusicPinAttributes
-    id: str
-    type: str
-
-
-class AppleMusicPinsResponse(BaseModel):
-    data: list[AppleMusicPin]
-
-
 # Playlist
 
 
