@@ -27,7 +27,8 @@ def main() -> None:
     output_dir = args.directory or config_dir or Path.cwd()
 
     if args.pins:
-        PinsDownloader(Downloader(auth)).download(download_type, output_dir)
+        with Downloader(auth) as d:
+            PinsDownloader(d).download(download_type, output_dir)
         return
 
     if not args.url:
@@ -43,7 +44,8 @@ def main() -> None:
     ):
         raise NotImplementedError(f"URL `{am_type.name}` not supported")
 
-    _ = Downloader(auth).download(download_type, am_type, resource_id, output_dir, args.url)
+    with Downloader(auth) as d:
+        d.download(download_type, am_type, resource_id, output_dir, args.url)
 
 
 if __name__ == "__main__":
