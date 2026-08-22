@@ -51,7 +51,7 @@ class Album(DomainModel):
 class Artist(BaseModel):
     artist_id: str
     name: str
-    artwork_url: str
+    artwork_url: str | None = None
     albums: list[Album]
 
 

@@ -36,12 +36,12 @@ def album_track_path(output_dir: Path, album: Album, track: Track) -> Path:
 def album_artwork_path(output_dir: Path, album: Album) -> Path:
     artist = sanitize_filename_component(album.artist_name)
     album_name = sanitize_filename_component(album.name)
-    return output_dir / f"{artist} - {album_name}.{IMAGE}"
+    return output_dir / artist / f"{album_name}.{IMAGE}"
 
 
 def artist_artwork_path(output_dir: Path, artist: Artist) -> Path:
     name = sanitize_filename_component(artist.name)
-    return output_dir / f"{name}.{IMAGE}"
+    return output_dir / name / f"{name}.{IMAGE}"
 
 
 def playlist_track_path(output_dir: Path, playlist: Playlist, track: Track, track_number: int) -> Path:
@@ -61,6 +61,7 @@ def profile_artwork_path(output_dir: Path, profile: Profile) -> Path:
     handle = sanitize_filename_component(profile.handle)
     username = sanitize_filename_component(profile.username)
     return output_dir / handle / f"{username}.{IMAGE}"
+
 
 def pin_artwork_path(output_dir: Path, pin: Pin):
     name = sanitize_filename_component(pin.name)

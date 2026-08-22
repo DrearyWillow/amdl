@@ -4,7 +4,7 @@ from enum import Enum, auto
 from pathlib import Path
 from typing import Protocol
 
-from amdl.apple_music import AppleMusicAuthenticator, AppleMusicClient, AppleMusicUrlType
+from amdl.apple_music import AppleMusicAuthenticator, AppleMusicClient, AppleMusicType
 from amdl.domain import Album, Playlist, Track
 from amdl.media import (
     HLSManifest,
@@ -42,20 +42,25 @@ class Downloader:
         self.client: AppleMusicClient = AppleMusicClient(auth)
         self.media_downloader: MediaDownloader = MediaDownloader(self.client)
         self.drm: WidevineDRM = WidevineDRM(self.client)
-        self._downloaders: dict[AppleMusicUrlType, type[DownloaderProtocol]] = {
-            AppleMusicUrlType.ALBUM: AlbumDownloader,
-            AppleMusicUrlType.LIBRARY_ALBUM: AlbumDownloader,
-            AppleMusicUrlType.SONG: TrackDownloader,
-            AppleMusicUrlType.LIBRARY_SONG: TrackDownloader,
-            AppleMusicUrlType.ARTIST: ArtistDownloader,
-            AppleMusicUrlType.LIBRARY_ARTIST: ArtistDownloader,
-            AppleMusicUrlType.PLAYLIST: PlaylistDownloader,
-            AppleMusicUrlType.LIBRARY_PLAYLIST: PlaylistDownloader,
-            AppleMusicUrlType.PROFILE: ProfileDownloader,
+        self._downloaders: dict[AppleMusicType, type[DownloaderProtocol]] = {
+            AppleMusicType.ALBUM: AlbumDownloader,
+            AppleMusicType.LIBRARY_ALBUM: AlbumDownloader,
+            AppleMusicType.SONG: TrackDownloader,
+            AppleMusicType.LIBRARY_SONG: TrackDownloader,
+            AppleMusicType.ARTIST: ArtistDownloader,
+            AppleMusicType.LIBRARY_ARTIST: ArtistDownloader,
+            AppleMusicType.PLAYLIST: PlaylistDownloader,
+            AppleMusicType.LIBRARY_PLAYLIST: PlaylistDownloader,
+            AppleMusicType.PROFILE: ProfileDownloader,
         }
 
     def download(
-        self, dl_type: DownloadType, am_type: AppleMusicUrlType, am_id: str, dir: Path, input_url: str
+        self,
+        download_type: DownloadType,
+        am_type: AppleMusicType,
+        resource_id: str,
+        output_dir: Path,
+        input_url: str | None = None,
     ) -> None:
         downloader_type = self._downloaders.get(am_type)
 
@@ -64,43 +69,16 @@ class Downloader:
 
         downloader = downloader_type(self)
 
-        match dl_type:
+        match download_type:
             case DownloadType.MEDIA:
-                downloader.media(am_id, dir, input_url)
+                if input_url is None:
+                    raise ValueError("input_url is required for media downloads")
+                downloader.media(resource_id, output_dir, input_url)
             case DownloadType.ART:
-                downloader.art(am_id, dir)
-
-    def media(self, am_type: AppleMusicUrlType, am_id: str, output_dir: Path, input_url: str) -> None:
-        match am_type:
-            case AppleMusicUrlType.ALBUM | AppleMusicUrlType.LIBRARY_ALBUM:
-                AlbumDownloader(self).media(am_id, output_dir, input_url)
-            case AppleMusicUrlType.SONG | AppleMusicUrlType.LIBRARY_SONG:
-                TrackDownloader(self).media(am_id, output_dir, input_url)
-            case AppleMusicUrlType.ARTIST | AppleMusicUrlType.LIBRARY_ARTIST:
-                ArtistDownloader(self).media(am_id, output_dir, input_url)
-            case AppleMusicUrlType.PLAYLIST | AppleMusicUrlType.LIBRARY_PLAYLIST:
-                PlaylistDownloader(self).media(am_id, output_dir, input_url)
-            case AppleMusicUrlType.PROFILE:
-                ProfileDownloader(self).media(am_id, output_dir, input_url)
-            case _:
-                raise NotImplementedError(f"URL `{am_type.name}` not supported")
-
-    def art(self, am_type: AppleMusicUrlType, am_id: str, output_dir: Path) -> None:
-        match am_type:
-            case AppleMusicUrlType.ALBUM | AppleMusicUrlType.LIBRARY_ALBUM:
-                AlbumDownloader(self).art(am_id, output_dir)
-            case AppleMusicUrlType.SONG | AppleMusicUrlType.LIBRARY_SONG:
-                TrackDownloader(self).art(am_id, output_dir)
-            case AppleMusicUrlType.ARTIST | AppleMusicUrlType.LIBRARY_ARTIST:
-                ArtistDownloader(self).art(am_id, output_dir)
-            case AppleMusicUrlType.PLAYLIST | AppleMusicUrlType.LIBRARY_PLAYLIST:
-                PlaylistDownloader(self).art(am_id, output_dir)
-            case AppleMusicUrlType.PROFILE:
-                ProfileDownloader(self).art(am_id, output_dir)
-            case _:
-                raise NotImplementedError(f"URL `{am_type.name}` not supported")
+                downloader.art(resource_id, output_dir)
 
     def download_track_audio(self, track: Track, output_path: Path) -> None:
+        # TODO: check if output file exists first? skip if true?
         output_path.parent.mkdir(parents=True, exist_ok=True)
 
         playback = self.client.get_playback(track.id)
@@ -127,8 +105,11 @@ class TrackDownloader:
         output_path = track_path(output_dir, track)
         url = str(track.url or input_url)
         artwork = self.parent.client.fetch_content(track.artwork_url)
-        self.parent.download_track_audio(track, output_path)
-        embed_track_metadata(track, output_path, url, artwork)
+        try:
+            self.parent.download_track_audio(track, output_path)
+            embed_track_metadata(track, output_path, url, artwork)
+        except ValueError as e:
+            print(f"Skipping track {track.id}: {e}")
 
     def art(self, track_id: str, output_dir: Path, /) -> None:
         track = self.parent.client.get_track(track_id)
@@ -153,8 +134,11 @@ class AlbumDownloader:
         def process_track(context: AlbumDownloader.TrackContext) -> None:
             album, track, url, artwork = context
             output_path = album_track_path(output_dir, album, track)
-            self.parent.download_track_audio(track, output_path)
-            embed_track_metadata(track, output_path, url, artwork)
+            try:
+                self.parent.download_track_audio(track, output_path)
+                embed_track_metadata(track, output_path, url, artwork)
+            except ValueError as e:
+                print(f"Skipping track {track.id}: {e}")
 
         with ThreadPoolExecutor(max_workers=8) as executor:
             _ = list(executor.map(process_track, work_items))
@@ -187,6 +171,9 @@ class ArtistDownloader:
 
     def art(self, artist_id: str, output_dir: Path, /) -> None:
         artist = self.parent.client.get_artist(artist_id)  # TODO: this could be significantly cheaper
+        if not artist.artwork_url:
+            raise ValueError("Artist does not have artwork")  # TODO: see if there are better `include`s to prevent this
+            # TODO: alternatively, download all album artwork
         artwork = self.parent.client.fetch_content(artist.artwork_url)
         output_path = artist_artwork_path(output_dir, artist)
         save_artwork(artwork, output_path)
@@ -203,13 +190,16 @@ class PlaylistDownloader:
     def download_tracks(self, playlist: Playlist, output_dir: Path, input_url: str) -> None:
         work_list = tuple(enumerate(playlist.tracks, 1))
 
-        def process_track(work_list: tuple[Track, int]) -> None:
-            track, track_number = work_list
+        def process_track(work_list: tuple[int, Track]) -> None:
+            track_number, track = work_list
             url = str(track.url) if track.url else input_url
             output_path = playlist_track_path(output_dir, playlist, track, track_number)
             artwork = self.parent.client.fetch_content(track.artwork_url)
-            self.parent.download_track_audio(track, output_path)
-            embed_track_metadata(track, output_path, url, artwork)
+            try:
+                self.parent.download_track_audio(track, output_path)
+                embed_track_metadata(track, output_path, url, artwork)
+            except ValueError as e:
+                print(f"Skipping track {track.id}: {e}")
 
         with ThreadPoolExecutor(max_workers=8) as executor:
             _ = list(executor.map(process_track, work_list))
@@ -241,19 +231,26 @@ class PinsDownloader:
     def __init__(self, parent: Downloader) -> None:
         self.parent: Downloader = parent
 
-    def media(self, _: str, output_dir: Path, input_url: str, /) -> None:
+    def download(self, download_type: DownloadType, output_dir: Path) -> None:
+        if download_type == DownloadType.MEDIA:
+            self.media(output_dir)
+        elif download_type == DownloadType.ART:
+            self.art(output_dir)
+
+    def media(self, output_dir: Path) -> None:
+        fallback_url = ""  # TODO: feels bad?
         for pin in self.parent.client.get_pins():
             if pin.track:
-                TrackDownloader(self.parent).download_track(pin.track, output_dir, input_url)
+                TrackDownloader(self.parent).download_track(pin.track, output_dir, fallback_url)
             elif pin.album:
-                AlbumDownloader(self.parent).download_tracks([pin.album], output_dir, input_url)
+                AlbumDownloader(self.parent).download_tracks([pin.album], output_dir, fallback_url)
             elif pin.artist:
-                AlbumDownloader(self.parent).download_tracks(pin.artist.albums, output_dir, input_url)
+                AlbumDownloader(self.parent).download_tracks(pin.artist.albums, output_dir, fallback_url)
             elif pin.playlist:
-                PlaylistDownloader(self.parent).download_tracks(pin.playlist, output_dir, input_url)
+                PlaylistDownloader(self.parent).download_tracks(pin.playlist, output_dir, fallback_url)
 
-    def art(self, output_dir: Path, /) -> None:
-        for pin in self.parent.client.get_pins():
+    def art(self, output_dir: Path) -> None:
+        for pin in self.parent.client.get_pins():  # TODO: this could be significantly cheaper
             if pin.artwork_url:
                 artwork = self.parent.client.fetch_content(pin.artwork_url)
                 output_path = pin_artwork_path(output_dir, pin)

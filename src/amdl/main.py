@@ -1,9 +1,13 @@
 from pathlib import Path
 
-from amdl.apple_music import AppleMusicAuthenticator, AppleMusicUrlType, parse_apple_music_url
+from amdl.apple_music import (
+    AppleMusicAuthenticator,
+    AppleMusicType,
+    parse_apple_music_url,
+)
 from amdl.cli import ArgParser
 from amdl.config import SAVE_DIRECTORY
-from amdl.downloader import Downloader, DownloadType
+from amdl.downloader import Downloader, DownloadType, PinsDownloader
 
 
 def main() -> None:
@@ -14,27 +18,31 @@ def main() -> None:
         auth.clear_credentials()
         return
 
-    if not args.url:
-        raise SystemExit("Error: A valid Apple Music URL is required.")
-
     if not auth.login():
         raise SystemExit("Authentication failed")
 
-    url_type, am_id = parse_apple_music_url(args.url)
+    download_type = DownloadType.ART if args.only_artwork else DownloadType.MEDIA
     config_dir = Path(SAVE_DIRECTORY).expanduser() if SAVE_DIRECTORY else None
     output_dir = args.directory or config_dir or Path.cwd()
-    download_type = DownloadType.ART if args.only_artwork else DownloadType.MEDIA
 
-    if url_type in (
-        AppleMusicUrlType.CURATOR,
-        AppleMusicUrlType.APPLE_CURATOR,
-        AppleMusicUrlType.RECORD_LABEL,
-        AppleMusicUrlType.STATION,
-        AppleMusicUrlType.MUSIC_VIDEO,
+    if args.pins:
+        PinsDownloader(Downloader(auth)).download(download_type, output_dir)
+        return
+
+    if not args.url:
+        raise SystemExit("Error: A valid Apple Music URL is required.")
+    am_type, resource_id = parse_apple_music_url(args.url)
+
+    if am_type in (
+        AppleMusicType.CURATOR,
+        AppleMusicType.APPLE_CURATOR,
+        AppleMusicType.RECORD_LABEL,
+        AppleMusicType.STATION,
+        AppleMusicType.MUSIC_VIDEO,
     ):
-        raise NotImplementedError(f"URL `{url_type.name}` not supported")
+        raise NotImplementedError(f"URL `{am_type.name}` not supported")
 
-    _ = Downloader(auth).download(download_type, url_type, am_id, output_dir, args.url)
+    _ = Downloader(auth).download(download_type, am_type, resource_id, output_dir, args.url)
 
 
 if __name__ == "__main__":

@@ -29,7 +29,12 @@ class AppleMusicTrackParser:
     def parse_track(cls, resource: AppleMusicTrack) -> Track:
         if is_library_track(resource.id):
             catalog = cls._catalog_track(resource)
-            catalog_id = catalog.id if catalog is not None else resource.attributes.play_params.catalog_id
+            if catalog is not None:
+                catalog_id = catalog.id
+            elif resource.attributes.play_params:
+                catalog_id = resource.attributes.play_params.catalog_id
+            else:
+                catalog_id = None
             attributes = catalog.attributes if catalog is not None else resource.attributes
         else:
             catalog_id = resource.id
@@ -75,7 +80,7 @@ class AppleMusicArtistParser:
         return Artist(
             artist_id=catalog.id if catalog else resource.id,
             name=attributes.name,
-            artwork_url=attributes.artwork.url,
+            artwork_url=attributes.artwork.url if attributes.artwork else None,
             albums=cls._albums(resource, catalog),
         )
 
@@ -142,7 +147,8 @@ class AppleMusicPinsParser:
                 type=resource.type,
                 name=resource.attributes.name,
                 artist_name=resource.attributes.artist_name,
-            ) for resource in response.data
+            )
+            for resource in response.data
         ]
 
 

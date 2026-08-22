@@ -6,4 +6,8 @@ WEB_PLAYBACK_URL = "https://play.music.apple.com/WebObjects/MZPlay.woa/wa/webPla
 WIDEVINE_CERT_URL = "https://play.itunes.apple.com/WebObjects/MZPlay.woa/wa/widevineCert"
 LICENSE_URL = "https://play.itunes.apple.com/WebObjects/MZPlay.woa/wa/acquireWebPlaybackLicense"
 KEYRING_NAME = "AppleMusicDownloader"
-APPLE_MUSIC_HOSTS = {"music.apple.com", "beta.music.apple.com", "classical.music.apple.com"}
+APPLE_MUSIC_HOSTS = {
+    "music.apple.com",
+    "beta.music.apple.com",
+    "classical.music.apple.com",
+}

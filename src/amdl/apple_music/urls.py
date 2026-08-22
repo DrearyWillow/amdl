@@ -4,7 +4,7 @@ from urllib.parse import parse_qs, urlparse
 from amdl.config import APPLE_MUSIC_HOSTS
 
 
-class AppleMusicUrlType(Enum):
+class AppleMusicType(Enum):
     ALBUM = auto()
     SONG = auto()
     ARTIST = auto()
@@ -17,13 +17,14 @@ class AppleMusicUrlType(Enum):
     LIBRARY_ARTIST = auto()
     LIBRARY_PLAYLIST = auto()
 
+    PINS = auto()
     PROFILE = auto()
     CURATOR = auto()
     APPLE_CURATOR = auto()
     RECORD_LABEL = auto()
 
 
-def parse_apple_music_url(url: str) -> tuple[AppleMusicUrlType, str]:
+def parse_apple_music_url(url: str) -> tuple[AppleMusicType, str]:
     parsed = urlparse(url)
 
     if parsed.scheme not in {"http", "https"}:
@@ -39,9 +40,7 @@ def parse_apple_music_url(url: str) -> tuple[AppleMusicUrlType, str]:
 
     # /profile/{name}
     if parts[0] == "profile":
-        if len(parts) != 2:
-            raise ValueError("Invalid Apple Music profile URL")
-        return AppleMusicUrlType.PROFILE, parts[1]
+        return _parse_profile_url(parts)
 
     if len(parts) < 2:
         raise ValueError("Could not parse Apple Music URL: missing resource type")
@@ -59,7 +58,13 @@ def parse_apple_music_url(url: str) -> tuple[AppleMusicUrlType, str]:
     return _parse_catalog_url(resource, parts, parsed.query)
 
 
-def _parse_library_url(parts: tuple[str, ...]) -> tuple[AppleMusicUrlType, str]:
+def _parse_profile_url(parts: tuple[str, ...]) -> tuple[AppleMusicType, str]:
+    if len(parts) != 2:
+        raise ValueError("Invalid Apple Music profile URL")
+    return AppleMusicType.PROFILE, parts[1]
+
+
+def _parse_library_url(parts: tuple[str, ...]) -> tuple[AppleMusicType, str]:
     if len(parts) != 4:
         raise ValueError("Invalid Apple Music library URL")
 
@@ -67,50 +72,47 @@ def _parse_library_url(parts: tuple[str, ...]) -> tuple[AppleMusicUrlType, str]:
 
     match resource:
         case "albums":
-            return AppleMusicUrlType.LIBRARY_ALBUM, resource_id
+            return AppleMusicType.LIBRARY_ALBUM, resource_id
         case "songs":
-            return AppleMusicUrlType.LIBRARY_SONG, resource_id
+            return AppleMusicType.LIBRARY_SONG, resource_id
         case "artists":
-            return AppleMusicUrlType.LIBRARY_ARTIST, resource_id
+            return AppleMusicType.LIBRARY_ARTIST, resource_id
         case "playlist" | "playlists":
-            return AppleMusicUrlType.LIBRARY_PLAYLIST, resource_id
+            return AppleMusicType.LIBRARY_PLAYLIST, resource_id
         case _:
             raise ValueError(f"Unsupported Apple Music library URL type: {resource}")
 
 
-def _parse_catalog_url(resource: str, parts: tuple[str, ...], query: str) -> tuple[AppleMusicUrlType, str]:
-    if len(parts) < 3:
+def _parse_catalog_url(resource: str, parts: tuple[str, ...], query: str) -> tuple[AppleMusicType, str]:
+    if len(parts) < 4:
         raise ValueError("Could not parse Apple Music URL: path too short")
 
     resource_id = parts[-1]
 
     # /us/album/album-name/123456789?i=987654321
     if resource == "album":
-        song_ids = parse_qs(query).get("i")
-
-        if song_ids:
+        if song_ids := parse_qs(query, keep_blank_values=True).get("i"):
             if len(song_ids) != 1 or not song_ids[0]:
                 raise ValueError("Invalid Apple Music song ID in 'i' parameter")
-            return AppleMusicUrlType.SONG, song_ids[0]
-
-        return AppleMusicUrlType.ALBUM, resource_id
+            return AppleMusicType.SONG, song_ids[0]
+        return AppleMusicType.ALBUM, resource_id
 
     match resource:
         case "song":
-            return AppleMusicUrlType.SONG, resource_id
+            return AppleMusicType.SONG, resource_id
         case "artist":
-            return AppleMusicUrlType.ARTIST, resource_id
+            return AppleMusicType.ARTIST, resource_id
         case "playlist":
-            return AppleMusicUrlType.PLAYLIST, resource_id
+            return AppleMusicType.PLAYLIST, resource_id
         case "music-video":
-            return AppleMusicUrlType.MUSIC_VIDEO, resource_id
+            return AppleMusicType.MUSIC_VIDEO, resource_id
         case "station":
-            return AppleMusicUrlType.STATION, resource_id
+            return AppleMusicType.STATION, resource_id
         case "curator":
-            return AppleMusicUrlType.CURATOR, resource_id
+            return AppleMusicType.CURATOR, resource_id
         case "apple-curator":
-            return AppleMusicUrlType.APPLE_CURATOR, resource_id
+            return AppleMusicType.APPLE_CURATOR, resource_id
         case "record-label":
-            return AppleMusicUrlType.RECORD_LABEL, resource_id
+            return AppleMusicType.RECORD_LABEL, resource_id
         case _:
             raise ValueError(f"Unsupported Apple Music URL type: {resource}")

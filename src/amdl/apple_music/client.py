@@ -131,7 +131,7 @@ class AppleMusicClient:
                     pin.artwork_url = pin.album.artwork_url
                 case "library-artists":
                     pin.artist = self.get_artist(pin.id)
-                    pin.artwork_url = None
+                    pin.artwork_url = None  # TODO ?
                 case "library-playlists":
                     pin.playlist = self.get_playlist(pin.id)
                     pin.artwork_url = pin.playlist.artwork_url
@@ -141,10 +141,15 @@ class AppleMusicClient:
         return pins
 
     def get_profile_me(self) -> Profile:
-        return AppleMusicProfileParser.parse(self.get("me/social/profile"))
+        return AppleMusicProfileParser.parse(self.get(f"{APPLE_MUSIC_API}/me/social/profile"))
 
     def get_profile(self, handle: str) -> Profile:
-        return AppleMusicProfileParser.parse(self.get("social/us/social-profiles", params={"filter[handle]": handle}))
+        return AppleMusicProfileParser.parse(
+            self.get(
+                f"{APPLE_MUSIC_API}/social/us/social-profiles",
+                params={"filter[handle]": handle},
+            )
+        )
 
     def get_service_certificate(self) -> bytes:
         return self.http.get(WIDEVINE_CERT_URL).content

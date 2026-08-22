@@ -109,7 +109,7 @@ class AppleMusicTrackAttributes(BaseModel):
     track_number: int = Field(alias="trackNumber")
     release_date: date | None = Field(default=None, alias="releaseDate")
     artwork: AppleMusicArtwork
-    play_params: AppleMusicPlayParams = Field(alias="playParams")
+    play_params: AppleMusicPlayParams | None = Field(default=None, alias="playParams")
     url: HttpUrl | None = None
 
     model_config: ClassVar[ConfigDict] = ConfigDict(populate_by_name=True)
@@ -162,7 +162,7 @@ class AppleMusicArtistRelationships(BaseModel):
 
 
 class AppleMusicArtistAttributes(BaseModel):
-    artwork: AppleMusicArtwork
+    artwork: AppleMusicArtwork | None = None
     name: str
 
 
@@ -196,14 +196,6 @@ class AppleMusicProfileResponse(BaseModel):
 # Pin
 
 
-class AppleMusicPinCatalogRelationship(BaseModel):
-    data: list[AppleMusicArtist] | None = None
-
-
-class AppleMusicPinRelationships(BaseModel):
-    catalog: AppleMusicPinCatalogRelationship | None = None
-
-
 class AppleMusicPinAttributes(BaseModel):
     artist_name: str | None = Field(default=None, alias="artistName")
     artwork: AppleMusicArtwork | None = None
@@ -211,7 +203,6 @@ class AppleMusicPinAttributes(BaseModel):
 
 
 class AppleMusicPin(BaseModel):
-    relationships: AppleMusicPinRelationships | None = None
     attributes: AppleMusicPinAttributes
     id: str
     type: str
@@ -225,7 +216,7 @@ class AppleMusicPinsResponse(BaseModel):
 
 
 class AppleMusicPlaylistTracksResponse(BaseModel):
-    next: str
+    next: str | None = None
     data: list[AppleMusicTrack]
 
 
