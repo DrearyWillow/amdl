@@ -49,18 +49,30 @@ class TestParseAppleMusicUrl:
     @pytest.mark.parametrize(
         "url, expected_type, expected_id",
         [
-            ("https://music.apple.com/us/library/albums/l.abc1234", AppleMusicType.LIBRARY_ALBUM, "l.abc1234"),
-            ("https://music.apple.com/us/library/songs/i.xyz9876", AppleMusicType.LIBRARY_SONG, "i.xyz9876"),
-            ("https://music.apple.com/us/library/artists/r.aN0YrG", AppleMusicType.LIBRARY_ARTIST, "r.aN0YrG"),
             (
-                "https://music.apple.com/us/library/playlist/p.YJXV9e8cR0maQxa",
+                "https://music.apple.com/library/playlist/p.zp6KmqEimaVK87K",
                 AppleMusicType.LIBRARY_PLAYLIST,
-                "p.YJXV9e8cR0maQxa",
+                "p.zp6KmqEimaVK87K",
             ),
             (
-                "https://music.apple.com/us/library/playlists/p.YJXV9e8cR0maQxa",
+                "https://music.apple.com/library/artists/r.abc123",
+                AppleMusicType.LIBRARY_ARTIST,
+                "r.abc123",
+            ),
+            (
+                "https://music.apple.com/library/albums/l.abc123",
+                AppleMusicType.LIBRARY_ALBUM,
+                "l.abc123",
+            ),
+            (
+                "https://music.apple.com/library/songs/i.abc123",
+                AppleMusicType.LIBRARY_SONG,
+                "i.abc123",
+            ),
+            (
+                "https://music.apple.com/us/library/playlist/p.abc123",
                 AppleMusicType.LIBRARY_PLAYLIST,
-                "p.YJXV9e8cR0maQxa",
+                "p.abc123",
             ),
         ],
     )

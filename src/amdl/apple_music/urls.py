@@ -9,8 +9,6 @@ class AppleMusicType(Enum):
     SONG = auto()
     ARTIST = auto()
     PLAYLIST = auto()
-    MUSIC_VIDEO = auto()
-    STATION = auto()
 
     LIBRARY_ALBUM = auto()
     LIBRARY_SONG = auto()
@@ -19,6 +17,8 @@ class AppleMusicType(Enum):
 
     PINS = auto()
     PROFILE = auto()
+    MUSIC_VIDEO = auto()
+    STATION = auto()
     CURATOR = auto()
     APPLE_CURATOR = auto()
     RECORD_LABEL = auto()
@@ -41,6 +41,10 @@ def parse_apple_music_url(url: str) -> tuple[AppleMusicType, str]:
     # /profile/{name}
     if parts[0] == "profile":
         return _parse_profile_url(parts)
+
+    # /library/{resource}/{id}
+    if parts[0] == "library":
+        return _parse_library_url(parts)
 
     if len(parts) < 2:
         raise ValueError("Could not parse Apple Music URL: missing resource type")
@@ -65,23 +69,26 @@ def _parse_profile_url(parts: tuple[str, ...]) -> tuple[AppleMusicType, str]:
 
 
 def _parse_library_url(parts: tuple[str, ...]) -> tuple[AppleMusicType, str]:
-    if len(parts) != 4:
-        raise ValueError("Invalid Apple Music library URL")
-
-    _, _, resource, resource_id = parts
+    if parts[0] == "library":
+        if len(parts) != 3:
+            raise ValueError("Invalid Apple Music library URL")
+        _, resource, resource_id = parts
+    else:
+        if len(parts) != 4:
+            raise ValueError("Invalid Apple Music library URL")
+        _, _, resource, resource_id = parts
 
     match resource:
-        case "albums":
+        case "album" | "albums":
             return AppleMusicType.LIBRARY_ALBUM, resource_id
-        case "songs":
+        case "song" | "songs":
             return AppleMusicType.LIBRARY_SONG, resource_id
-        case "artists":
+        case "artist" | "artists":
             return AppleMusicType.LIBRARY_ARTIST, resource_id
         case "playlist" | "playlists":
             return AppleMusicType.LIBRARY_PLAYLIST, resource_id
         case _:
             raise ValueError(f"Unsupported Apple Music library URL type: {resource}")
-
 
 def _parse_catalog_url(resource: str, parts: tuple[str, ...], query: str) -> tuple[AppleMusicType, str]:
     if len(parts) < 4:
