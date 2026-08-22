@@ -78,7 +78,10 @@ class Downloader:
                 downloader.art(resource_id, output_dir)
 
     def download_track_audio(self, track: Track, output_path: Path) -> None:
-        # TODO: check if output file exists first? skip if true?
+        if output_path.exists():
+            print(f"Skipping track {track.id}: {output_path} already exists")
+            return
+
         output_path.parent.mkdir(parents=True, exist_ok=True)
 
         playback = self.client.get_playback(track.id)
@@ -92,6 +95,15 @@ class Downloader:
 
         print(f"Downloaded track {track.id} to {output_path}")
 
+    def try_download_track(self, track: Track, output_path: Path, url: str, artwork: bytes | None = None) -> None:
+        try:
+            if not artwork:
+                artwork = self.client.fetch_content(track.artwork_url)
+            self.download_track_audio(track, output_path)
+            embed_track_metadata(track, output_path, url, artwork)
+        except ValueError as e:
+            print(f"Skipping track {track.id}: {e}")
+
 
 class TrackDownloader:
     def __init__(self, parent: Downloader) -> None:
@@ -104,12 +116,7 @@ class TrackDownloader:
     def download_track(self, track: Track, output_dir: Path, input_url: str) -> None:
         output_path = track_path(output_dir, track)
         url = str(track.url or input_url)
-        artwork = self.parent.client.fetch_content(track.artwork_url)
-        try:
-            self.parent.download_track_audio(track, output_path)
-            embed_track_metadata(track, output_path, url, artwork)
-        except ValueError as e:
-            print(f"Skipping track {track.id}: {e}")
+        self.parent.try_download_track(track, output_path, url)
 
     def art(self, track_id: str, output_dir: Path, /) -> None:
         track = self.parent.client.get_track(track_id)
@@ -134,11 +141,7 @@ class AlbumDownloader:
         def process_track(context: AlbumDownloader.TrackContext) -> None:
             album, track, url, artwork = context
             output_path = album_track_path(output_dir, album, track)
-            try:
-                self.parent.download_track_audio(track, output_path)
-                embed_track_metadata(track, output_path, url, artwork)
-            except ValueError as e:
-                print(f"Skipping track {track.id}: {e}")
+            self.parent.try_download_track(track, output_path, url, artwork)
 
         with ThreadPoolExecutor(max_workers=8) as executor:
             _ = list(executor.map(process_track, work_items))
@@ -194,12 +197,7 @@ class PlaylistDownloader:
             track_number, track = work_list
             url = str(track.url) if track.url else input_url
             output_path = playlist_track_path(output_dir, playlist, track, track_number)
-            artwork = self.parent.client.fetch_content(track.artwork_url)
-            try:
-                self.parent.download_track_audio(track, output_path)
-                embed_track_metadata(track, output_path, url, artwork)
-            except ValueError as e:
-                print(f"Skipping track {track.id}: {e}")
+            self.parent.try_download_track(track, output_path, url)
 
         with ThreadPoolExecutor(max_workers=8) as executor:
             _ = list(executor.map(process_track, work_list))
