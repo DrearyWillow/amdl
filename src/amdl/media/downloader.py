@@ -2,7 +2,7 @@ import base64
 import subprocess
 from pathlib import Path
 
-from amdl.apple_music import AppleMusicClient
+from amdl.apple_music.client import AppleMusicClient
 
 
 class MediaDownloader:

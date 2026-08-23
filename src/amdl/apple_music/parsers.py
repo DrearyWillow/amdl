@@ -27,7 +27,7 @@ class AppleMusicTrackParser:
         if is_library_track(resource.id):
             catalog = cls._catalog_track(resource)
             if catalog is not None:
-                catalog_id = catalog.id
+                catalog_id: str | None = catalog.id
             elif resource.attributes.play_params:
                 catalog_id = resource.attributes.play_params.catalog_id
             else:

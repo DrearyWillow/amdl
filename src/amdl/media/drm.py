@@ -4,7 +4,7 @@ from pathlib import Path
 from pywidevine import PSSH, Cdm, Device
 from pywidevine.license_protocol_pb2 import WidevinePsshData
 
-from amdl.apple_music import AppleMusicClient
+from amdl.apple_music.client import AppleMusicClient
 
 
 class WidevineDRM:
