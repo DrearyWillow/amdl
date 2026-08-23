@@ -25,6 +25,7 @@ dev = [
     "basedpyright>=1.39.10",
     "mypy @ git+https://github.com/python/mypy.git@7f88c95bbf9af181a4de13e2c242c89216f15b19",
     "pytest>=9.1.1",
+    "pytest-cov>=7.1.0",
     "ruff>=0.16.4",
     "types-m3u8>=6.0.0.20260518",
 ]

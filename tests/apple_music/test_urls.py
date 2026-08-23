@@ -7,14 +7,10 @@ class TestParseAppleMusicUrl:
     @pytest.mark.parametrize(
         "url, expected_type, expected_id",
         [
-            # Albums
             ("https://music.apple.com/us/album/album-title/123456789", AppleMusicType.ALBUM, "123456789"),
             ("https://music.apple.com/gb/album/album-title/123456789", AppleMusicType.ALBUM, "123456789"),
-            # Songs
             ("https://music.apple.com/us/song/song-title/987654321", AppleMusicType.SONG, "987654321"),
-            # Artists
             ("https://music.apple.com/us/artist/artist-name/123456789", AppleMusicType.ARTIST, "123456789"),
-            # Playlists
             ("https://music.apple.com/us/playlist/playlist-name/pl.abc123", AppleMusicType.PLAYLIST, "pl.abc123"),
         ],
     )
@@ -32,18 +28,13 @@ class TestParseAppleMusicUrl:
     )
     def test_parse_album_song_urls(self, url: str, expected_id: str) -> None:
         url_type, am_id = parse_apple_music_url(url)
-
         assert url_type == AppleMusicType.SONG
         assert am_id == expected_id
 
     @pytest.mark.parametrize(
         "url, expected_type, expected_id",
         [
-            (
-                "https://music.apple.com/library/playlist/p.zp6KmqEimaVK87K",
-                AppleMusicType.PLAYLIST,
-                "p.zp6KmqEimaVK87K",
-            ),
+            ("https://music.apple.com/library/playlist/p.zp6Km", AppleMusicType.PLAYLIST, "p.zp6Km"),
             ("https://music.apple.com/library/artists/r.abc123", AppleMusicType.ARTIST, "r.abc123"),
             ("https://music.apple.com/library/albums/l.abc123", AppleMusicType.ALBUM, "l.abc123"),
             ("https://music.apple.com/library/songs/i.abc123", AppleMusicType.SONG, "i.abc123"),
@@ -108,6 +99,7 @@ class TestParseAppleMusicUrl:
             "https://music.apple.com/us/library/album",
             "https://music.apple.com/us/library/albums",
             "https://music.apple.com/us/library/albums/l.abc/extra",
+            "https://music.apple.com/library/albums",
         ],
     )
     def test_parse_invalid_library_url_raises(self, url: str) -> None:
@@ -141,4 +133,10 @@ class TestParseAppleMusicUrl:
     def test_parse_invalid_album_song_parameter_raises(self, query: str) -> None:
         url = f"https://music.apple.com/us/album/album-title/123456789{query}"
         with pytest.raises(ValueError, match="Invalid Apple Music song ID in 'i' parameter"):
+            _ = parse_apple_music_url(url)
+
+    def test_parse_unsupported_profile_url_raises(self) -> None:
+        url = "https://music.apple.com/profile/test"
+
+        with pytest.raises(ValueError, match="Unsupported Apple Music URL type: profile"):
             _ = parse_apple_music_url(url)

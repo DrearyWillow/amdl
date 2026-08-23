@@ -1,3 +1,5 @@
+from datetime import date
+
 import pytest
 from pydantic import ValidationError
 
@@ -37,21 +39,39 @@ class TestAttributeValidators:
         attrs = AppleMusicTrackAttributes.model_validate(raw)
         assert attrs.album_name == "Project Name"
 
+    def test_album_attributes_normalizes_year_only_release_date(self) -> None:
+        raw = {
+            "name": "Test Album",
+            "artistName": "Artist",
+            "releaseDate": "2026",
+            "artwork": {"url": "http://example.com/art.jpg"},
+        }
+
+        attrs = AppleMusicAlbumAttributes.model_validate(raw)
+
+        assert attrs.release_date == date(2026, 1, 1)
+
+    def test_track_attributes_normalizes_year_only_release_date(self) -> None:
+        raw = {
+            "name": "Track Name",
+            "artistName": "Artist",
+            "albumName": "Album",
+            "trackNumber": 1,
+            "releaseDate": "2026",
+            "artwork": {"url": "http://example.com/art.jpg"},
+            "playParams": {"id": "123"},
+        }
+
+        attrs = AppleMusicTrackAttributes.model_validate(raw)
+
+        assert attrs.release_date == date(2026, 1, 1)
+
 
 class TestPlaybackSchemas:
     def test_playback_response_camel_case_aliases(self) -> None:
         raw = {
             "customerMessage": "Error occurred",
-            "songList": [
-                {
-                    "assets": [
-                        {
-                            "flavor": "2b:ctrp256",
-                            "URL": "https://example.com/stream.m3u8",
-                        }
-                    ]
-                }
-            ],
+            "songList": [{"assets": [{"flavor": "2b:ctrp256", "URL": "https://example.com/stream.m3u8"}]}],
         }
         resp = AppleMusicPlaybackResponse.model_validate(raw)
         assert resp.customer_message == "Error occurred"

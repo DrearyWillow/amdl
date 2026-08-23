@@ -22,6 +22,12 @@ class TestDomainModel:
         with pytest.raises(ValidationError, match="A library or catalog ID is required"):
             _ = DomainModel()
 
+    def test_id_property_raises_if_invariant_is_bypassed(self) -> None:
+        model = DomainModel.model_construct(library_id=None, catalog_id=None)
+
+        with pytest.raises(AssertionError, match="A library or catalog ID is required"):
+            _ = model.id
+
 
 class TestTrack:
     @staticmethod

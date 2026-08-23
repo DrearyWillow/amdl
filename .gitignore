@@ -6,5 +6,10 @@ wheels/
 *.egg-info
 .venv
 .dev
-.tests
+dev/*.json
 .mypy_cache
+.pytest_cache
+.ruff_cache
+.coverage
+.coverage.*
+htmlcov
