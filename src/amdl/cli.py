@@ -4,11 +4,25 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import cast
 
+import keyring
+
+from amdl.config import KEYRING_NAME
+
 
 @dataclass(frozen=True)
 class Arguments:
     url: str | None
+    directory: Path
+    save_dir: bool
+    logout: bool
+    debug: bool
+
+
+@dataclass(frozen=True)
+class ParsedArguments:
+    url: str | None
     directory: Path | None
+    save_dir: bool
     logout: bool
     debug: bool
 
@@ -17,37 +31,52 @@ class ArgParser:
     @staticmethod
     def create_parser() -> ArgumentParser:
         parser = ArgumentParser(description="Download tracks from Apple Music.")
-        _ = parser.add_argument("url", nargs="?", help="Apple Music URL to download")
+        _ = parser.add_argument("url", nargs="?", type=str, help="Apple Music URL to download")
         _ = parser.add_argument("-d", "--directory", type=Path, help="Directory to download to")
+        _ = parser.add_argument("--save-dir", action="store_true", help="Remember specified directory for future runs")
         _ = parser.add_argument("--logout", action="store_true", help="Clear stored Apple Music credentials")
         _ = parser.add_argument("--debug", action="store_true", help="Display debug logging")
         return parser
 
     @staticmethod
-    def validate(arguments: Arguments, parser: ArgumentParser) -> None:
+    def validate(arguments: ParsedArguments, parser: ArgumentParser) -> None:
         if arguments.logout and arguments.url is not None:
             parser.error("--logout cannot be used with a URL")
         if arguments.logout and arguments.directory is not None:
             parser.error("--logout cannot be used with --directory")
         if arguments.url is None and not arguments.logout:
-            parser.error("a URL is required unless --logout or --pins is specified")
+            parser.error("a URL is required unless --logout is specified")
         if arguments.directory is not None and arguments.url is None:
             parser.error("--directory requires a URL")
+        if arguments.save_dir and arguments.directory is None:
+            parser.error("--save-dir requires --directory is specified")
+
+    @staticmethod
+    def directory(directory: Path | None, save_dir: bool) -> Path:
+        if directory is not None:
+            if save_dir:
+                keyring.set_password(KEYRING_NAME, "directory", str(directory))
+            return directory
+
+        saved_dir = keyring.get_password(KEYRING_NAME, "directory")
+        return Path(saved_dir).expanduser() if saved_dir else Path.cwd()
 
     @classmethod
     def parse(cls) -> Arguments:
         parser = cls.create_parser()
         args = parser.parse_args()
 
-        arguments = Arguments(
+        parsed = ParsedArguments(
             url=cast(str | None, args.url),
             directory=cast(Path | None, args.directory),
+            save_dir=cast(bool, args.save_dir),
             logout=cast(bool, args.logout),
             debug=cast(bool, args.debug),
         )
 
-        cls.validate(arguments, parser)
-        return arguments
+        cls.validate(parsed, parser)
+        directory = cls.directory(parsed.directory, parsed.save_dir)
+        return Arguments(parsed.url, directory, parsed.save_dir, parsed.logout, parsed.debug)
 
 
 def define_logger(debug_mode: bool) -> None:
