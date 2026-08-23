@@ -1,1 +1,1 @@
-type JSON = str | int | float | bool | None | list[JSON] | dict[str, JSON]
+type JSON = str | int | float | bool | list[JSON] | dict[str, JSON] | None

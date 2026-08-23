@@ -29,29 +29,29 @@ class ParsedArguments:
     debug: bool
 
 
-def _resolve_directory(directory: Path | None, save_dir: bool) -> Path:
+def _resolve_directory(directory: Path | None, *, save_dir: bool) -> Path:
     if directory is None:
         saved_dir = keyring.get_password(KEYRING_NAME, "directory")
         return Path(saved_dir).expanduser() if saved_dir else Path.cwd()
 
     if save_dir:
-        logger.info("Saving output directory `%s` for subsequent runs", str(directory))
+        logger.info("Saving output directory `%s` for subsequent runs", directory)
         keyring.set_password(KEYRING_NAME, "directory", str(directory))
 
     return directory
 
 
-def _configure_logging(debug_mode: bool) -> None:
-    RESET = "\033[0m"
-    MAGENTA = "\033[35m"
-    CYAN = "\033[36m"
-    WHITE = "\033[37m"
+def _configure_logging(*, debug_mode: bool) -> None:
+    reset = "\033[0m"
+    magenta = "\033[35m"
+    cyan = "\033[36m"
+    white = "\033[37m"
 
     if not debug_mode:
         logging.basicConfig(format="%(message)s", level=logging.INFO)
         return
 
-    fmt = f"{CYAN}%(asctime)s:%(msecs)03d{RESET} {WHITE}%(levelname)s{RESET} {MAGENTA}%(name)s{RESET} %(message)s"
+    fmt = f"{cyan}%(asctime)s:%(msecs)03d{reset} {white}%(levelname)s{reset} {magenta}%(name)s{reset} %(message)s"
     logging.basicConfig(format=fmt, level=logging.DEBUG, datefmt="%H:%M:%S")
 
 
@@ -83,17 +83,17 @@ def parse_arguments() -> Arguments:
     args = parser.parse_args()
 
     parsed = ParsedArguments(
-        url=cast(str | None, args.url),
-        directory=cast(Path | None, args.directory),
-        save_dir=cast(bool, args.save_dir),
-        logout=cast(bool, args.logout),
-        debug=cast(bool, args.debug),
+        url=cast("str | None", args.url),
+        directory=cast("Path | None", args.directory),
+        save_dir=cast("bool", args.save_dir),
+        logout=cast("bool", args.logout),
+        debug=cast("bool", args.debug),
     )
 
     _validate_arguments(parsed, parser)
-    _configure_logging(parsed.debug)
+    _configure_logging(debug_mode=parsed.debug)
 
-    directory = _resolve_directory(parsed.directory, parsed.save_dir)
-    logger.debug("Determined output directory: %s", str(directory))
+    directory = _resolve_directory(parsed.directory, save_dir=parsed.save_dir)
+    logger.debug("Determined output directory: %s", directory)
 
     return Arguments(parsed.url, directory, parsed.save_dir, parsed.logout, parsed.debug)

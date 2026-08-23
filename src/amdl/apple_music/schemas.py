@@ -75,7 +75,8 @@ class AppleMusicAlbumAttributes(BaseModel):
     @field_validator("release_date", mode="before")
     @classmethod
     def normalize_release_date(cls, value: str | date) -> str | date:
-        if isinstance(value, str) and len(value) == 4 and value.isdigit():
+        year_length = 4
+        if isinstance(value, str) and len(value) == year_length and value.isdigit():
             return date(int(value), 1, 1)
         return value
 
@@ -122,7 +123,8 @@ class AppleMusicTrackAttributes(BaseModel):
     @field_validator("release_date", mode="before")
     @classmethod
     def normalize_release_date(cls, value: str | date) -> str | date:
-        if isinstance(value, str) and len(value) == 4 and value.isdigit():
+        year_length = 4
+        if isinstance(value, str) and len(value) == year_length and value.isdigit():
             return date(int(value), 1, 1)
         return value
 

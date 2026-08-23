@@ -1,7 +1,10 @@
 import re
-from pathlib import Path
+from typing import TYPE_CHECKING
 
-from amdl.domain import Album, Playlist, Track
+if TYPE_CHECKING:
+    from pathlib import Path
+
+    from amdl.domain import Album, Playlist, Track
 
 AUDIO = "m4a"
 IMAGE = "jpg"

@@ -1,15 +1,10 @@
 import logging
-from collections.abc import Callable, Iterable
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
-from pathlib import Path
-from types import TracebackType
-from typing import Self
+from typing import TYPE_CHECKING, Self
 
-from amdl.apple_music.auth import AppleMusicAuthenticator
 from amdl.apple_music.client import AppleMusicClient
 from amdl.apple_music.urls import AppleMusicType
-from amdl.domain import Album, Track
 from amdl.media.downloader import MediaDownloader
 from amdl.media.drm import WidevineDRM
 from amdl.media.metadata import embed_track_metadata, save_artwork
@@ -20,6 +15,14 @@ from amdl.media.paths import (
     playlist_track_path,
     track_path,
 )
+
+if TYPE_CHECKING:
+    from collections.abc import Callable, Iterable
+    from pathlib import Path
+    from types import TracebackType
+
+    from amdl.apple_music.auth import AppleMusicAuthenticator
+    from amdl.domain import Album, Track
 
 logger = logging.getLogger(__name__)
 
@@ -62,7 +65,7 @@ class Downloader:
 
     def _download_context(self, context: TrackContext) -> None:
         if context.output_path.exists():
-            logger.info("Skipping track %s: %s already exists", context.track.id, str(context.output_path))
+            logger.info("Skipping track %s: %s already exists", context.track.id, context.output_path)
             return
         try:
             self._download_track_audio(context.track, context.output_path)
@@ -75,7 +78,7 @@ class Downloader:
         playback = self.client.get_playback(track.id)
         key = self.drm.get_content_key(playback.kid, track.id) if playback.kid else None
         self.media_downloader.download(playback.url, output_path, playback.kid, key)
-        logger.info("Downloaded track %s to %s", track.id, str(output_path))
+        logger.info("Downloaded track %s to %s", track.id, output_path)
 
     def track(self, track_id: str, output_dir: Path, input_url: str, /) -> Iterable[TrackContext]:
         track = self.client.get_track(track_id)
@@ -134,6 +137,6 @@ class Downloader:
     def _get_context_art(self, context: TrackContext) -> bytes | None:
         if context.artwork is not None:
             return context.artwork
-        elif context.track.artwork_url is not None:
+        if context.track.artwork_url is not None:
             return self.client.fetch_content(context.track.artwork_url)
         return None

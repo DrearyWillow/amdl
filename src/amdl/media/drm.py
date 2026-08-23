@@ -1,35 +1,38 @@
 import base64
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from pywidevine import PSSH, Cdm, Device
 from pywidevine.license_protocol_pb2 import WidevinePsshData
 
-from amdl.apple_music.client import AppleMusicClient
+if TYPE_CHECKING:
+    from amdl.apple_music.client import AppleMusicClient
 
 
 class WidevineDRM:
     def __init__(self, client: AppleMusicClient) -> None:
         device_path: Path = Path(__file__).parent / "device.wvd"
-        assert device_path.exists(), f"Widevine device file not found at {device_path}"
+        if not device_path.exists():
+            msg = f"Widevine device file not found at {device_path}"
+            raise FileNotFoundError(msg)
         self.device: Device = Device.load(device_path)
         self.cdm: Cdm = Cdm.from_device(self.device)
 
         self.client: AppleMusicClient = client
         self.service_certificate: bytes = self.client.get_service_certificate()
 
-    def generate_pssh(self, kid_b64: str) -> PSSH:
+    @staticmethod
+    def generate_pssh(kid_b64: str) -> PSSH:
         """Generate PSSH (Protection Scheme Specific Header) from Key ID"""
         kid = base64.standard_b64decode(kid_b64)
         wv_data = WidevinePsshData(key_ids=[kid], algorithm="AESCTR", protection_scheme=0x63656E63)
-        pssh = PSSH.new(system_id=PSSH.SystemId.Widevine, init_data=wv_data, version=0)
-        return pssh
+        return PSSH.new(system_id=PSSH.SystemId.Widevine, init_data=wv_data, version=0)
 
     def get_license_challenge(self, session_id: bytes, kid_b64: str) -> str:
         """Generate license challenge for key request"""
         pssh = self.generate_pssh(kid_b64)
         challenge_bytes = self.cdm.get_license_challenge(session_id, pssh)
-        challenge = base64.b64encode(challenge_bytes).decode()
-        return challenge
+        return base64.b64encode(challenge_bytes).decode()
 
     def parse_license_and_get_key(self, session_id: bytes, license_data: bytes) -> str:
         """Parse license and extract content key"""

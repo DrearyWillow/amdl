@@ -32,6 +32,7 @@ dev = [
 ]
 
 [tool.pyright]
+typeCheckingMode = "strict"
 venvPath = "."
 venv = ".venv"
 
@@ -43,7 +44,27 @@ quote-style = "double"
 indent-style = "space"
 
 [tool.ruff.lint]
-extend-select = ["G"]
+preview = true
+select = ["ALL"]
+ignore = [
+    "D",
+    "missing-copyright-notice",
+    "raw-string-in-exception",
+    "raise-vanilla-args",
+    "docstring-missing-returns",
+    "missing-trailing-comma",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*.py" = ["assert"]
+"dev/*.py" = ["implicit-namespace-package"]
+"src/amdl/media/downloader.py" = [
+    "suspicious-subprocess-import",
+    "subprocess-without-shell-equals-true",
+]
+"src/amdl/domain.py" = [
+    "typing-only-standard-library-import"
+]
 
 [tool.mypy]
 mypy_path = "src"

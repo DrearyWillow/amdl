@@ -1,3 +1,4 @@
+import contextlib
 import logging
 import re
 from dataclasses import dataclass
@@ -18,7 +19,7 @@ class AppleMusicCredentials:
     media_token: str
 
 
-class LoginCancelled(Exception):
+class LoginCancelledError(Exception):
     pass
 
 
@@ -26,7 +27,7 @@ class AppleMusicAuthenticator:
     def __init__(self) -> None:
         self.credentials: AppleMusicCredentials | None = None
 
-    def startup(self, logout: bool = False) -> None:
+    def startup(self, *, logout: bool = False) -> None:
         if logout:
             self.clear_credentials()
             raise SystemExit("Logged out")
@@ -35,8 +36,8 @@ class AppleMusicAuthenticator:
                 logger.warning("Authentication failed. Clearing credentials and prompting login.")
                 if not self.login():
                     raise SystemExit("Authentication failed.")
-        except LoginCancelled:
-            raise SystemExit("Login cancelled: browser was closed")
+        except LoginCancelledError as e:
+            raise SystemExit("Login cancelled: browser was closed") from e
 
     def login(self) -> bool:
         credentials = self._load_credentials()
@@ -58,17 +59,17 @@ class AppleMusicAuthenticator:
         logger.debug("Deleting credentials from keyring")
         self.credentials = None
         for key in ("user_token", "media_token"):
-            try:
+            with contextlib.suppress(PasswordDeleteError):
                 keyring.delete_password(KEYRING_NAME, key)
-            except PasswordDeleteError:
-                pass
 
-    def _load_credentials(self) -> AppleMusicCredentials | None:
+    @staticmethod
+    def _load_credentials() -> AppleMusicCredentials | None:
         user_token = keyring.get_password(KEYRING_NAME, "user_token")
         media_token = keyring.get_password(KEYRING_NAME, "media_token")
         return AppleMusicCredentials(user_token, media_token) if user_token and media_token else None
 
-    def _save_credentials(self, credentials: AppleMusicCredentials) -> None:
+    @staticmethod
+    def _save_credentials(credentials: AppleMusicCredentials) -> None:
         keyring.set_password(KEYRING_NAME, "user_token", credentials.user_token)
         keyring.set_password(KEYRING_NAME, "media_token", credentials.media_token)
 
@@ -87,12 +88,12 @@ class AppleMusicAuthenticator:
                         return AppleMusicCredentials(user_token, media_token)
 
                     if page.is_closed():
-                        raise LoginCancelled("Browser was closed")
+                        raise LoginCancelledError("Browser was closed")
 
                     try:
                         page.wait_for_timeout(500)
-                    except PlaywrightError:
-                        raise LoginCancelled("Browser was closed")
+                    except PlaywrightError as e:
+                        raise LoginCancelledError("Browser was closed") from e
 
             finally:
                 browser.close()

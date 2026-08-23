@@ -27,19 +27,23 @@ def parse_apple_music_url(url: str) -> tuple[AppleMusicType, str]:
 
     # /profile/{name}
     if parts[0] == "profile":
-        raise ValueError(f"Unsupported Apple Music URL type: {parts[0]}")
+        msg = f"Unsupported Apple Music URL type: {parts[0]}"
+        raise ValueError(msg)
 
     # /library/{resource}/{id}
     if parts[0] == "library":
         return _parse_library_url(parts)
 
-    if len(parts) < 2:
+    storefront_parts_length = 2
+    if len(parts) < storefront_parts_length:
         raise ValueError("Could not parse Apple Music URL: missing resource type")
 
     storefront, resource = parts[0], parts[1]
 
-    if len(storefront) != 2:
-        raise ValueError(f"Invalid Apple Music storefront: {storefront}")
+    storefront_length = 2
+    if len(storefront) != storefront_length:
+        msg = f"Invalid Apple Music storefront: {storefront}"
+        raise ValueError(msg)
 
     # /{storefront}/library/{resource}/{id}
     if resource == "library":
@@ -51,11 +55,13 @@ def parse_apple_music_url(url: str) -> tuple[AppleMusicType, str]:
 
 def _parse_library_url(parts: tuple[str, ...]) -> tuple[AppleMusicType, str]:
     if parts[0] == "library":
-        if len(parts) != 3:
+        no_storefront_parts_length = 3
+        if len(parts) != no_storefront_parts_length:
             raise ValueError("Invalid Apple Music library URL")
         _, resource, resource_id = parts
     else:
-        if len(parts) != 4:
+        storefront_parts_length = 4
+        if len(parts) != storefront_parts_length:
             raise ValueError("Invalid Apple Music library URL")
         _, _, resource, resource_id = parts
 
@@ -69,11 +75,13 @@ def _parse_library_url(parts: tuple[str, ...]) -> tuple[AppleMusicType, str]:
         case "playlist" | "playlists":
             return AppleMusicType.PLAYLIST, resource_id
         case _:
-            raise ValueError(f"Unsupported Apple Music library URL type: {resource}")
+            msg = f"Unsupported Apple Music library URL type: {resource}"
+            raise ValueError(msg)
 
 
 def _parse_catalog_url(resource: str, parts: tuple[str, ...], query: str) -> tuple[AppleMusicType, str]:
-    if len(parts) < 4:
+    storefront_parts_length = 4
+    if len(parts) < storefront_parts_length:
         raise ValueError("Could not parse Apple Music URL: path too short")
 
     resource_id = parts[-1]
@@ -94,4 +102,5 @@ def _parse_catalog_url(resource: str, parts: tuple[str, ...], query: str) -> tup
         case "playlist":
             return AppleMusicType.PLAYLIST, resource_id
         case _:
-            raise ValueError(f"Unsupported Apple Music URL type: {resource}")
+            msg = f"Unsupported Apple Music URL type: {resource}"
+            raise ValueError(msg)

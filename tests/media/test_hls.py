@@ -7,13 +7,7 @@ from amdl.media.hls import extract_kid, extract_media_url, parse_hls_playlist
 
 def playlist_with_key() -> m3u8.M3U8:
     playlist = m3u8.M3U8()
-    playlist.keys = [
-        m3u8.Key(
-            method="AES-128",
-            base_uri="https://example.com/",
-            uri="data:;base64,a2V5"
-        )
-    ]
+    playlist.keys = [m3u8.Key(method="AES-128", base_uri="https://example.com/", uri="data:;base64,a2V5")]
     return playlist
 
 

@@ -7,7 +7,7 @@ lazy from amdl.downloader import Downloader
 def main() -> None:
     args = parse_arguments()
     auth = AppleMusicAuthenticator()
-    auth.startup(args.logout)
+    auth.startup(logout=args.logout)
 
     if not args.url:
         raise SystemExit("Error: A valid Apple Music URL is required.")

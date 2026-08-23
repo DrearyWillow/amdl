@@ -1,9 +1,12 @@
 import logging
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 from mutagen.mp4 import MP4, MP4Cover
 
-from amdl.domain import Track
+if TYPE_CHECKING:
+    from pathlib import Path
+
+    from amdl.domain import Track
 
 logger = logging.getLogger(__name__)
 
@@ -15,7 +18,7 @@ def embed_track_metadata(track: Track, path: Path, url: str | None = None, artwo
         track.track_number,
         track.artist_name,
         track.album_name,
-        str(track.release_date),
+        track.release_date,
     )
 
     mp4 = MP4(path)
@@ -23,7 +26,8 @@ def embed_track_metadata(track: Track, path: Path, url: str | None = None, artwo
     if mp4.tags is None:
         mp4.add_tags()
     tags = mp4.tags
-    assert tags is not None
+    if tags is None:
+        return
 
     tags["\xa9nam"] = track.name
     tags["\xa9ART"] = track.artist_name
@@ -42,7 +46,7 @@ def embed_track_metadata(track: Track, path: Path, url: str | None = None, artwo
 
 def save_artwork(image_bytes: bytes, output_path: Path) -> None:
     if output_path.exists():
-        logger.info("Skipping artwork: %s already exists", str(output_path))
+        logger.info("Skipping artwork: %s already exists", output_path)
         return
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -50,4 +54,4 @@ def save_artwork(image_bytes: bytes, output_path: Path) -> None:
     with output_path.open("wb") as file:
         _ = file.write(image_bytes)
 
-    logger.info("Downloaded artwork to %s", str(output_path))
+    logger.info("Downloaded artwork to %s", output_path)

@@ -1,8 +1,8 @@
 import logging
+from typing import TYPE_CHECKING
 
 from amdl.apple_music.ids import is_library_album, is_library_track
 from amdl.domain import Album, Artist, PlaybackSong, Playlist, Track
-from amdl.json_type import JSON
 from amdl.media.hls import parse_hls_playlist
 lazy from amdl.apple_music.schemas import (
     AppleMusicAlbum,
@@ -16,6 +16,9 @@ lazy from amdl.apple_music.schemas import (
     AppleMusicTrack,
     AppleMusicTrackResponse,
 )
+
+if TYPE_CHECKING:
+    from amdl.json_type import JSON
 
 logger = logging.getLogger(__name__)
 
@@ -52,10 +55,9 @@ class AppleMusicTrackParser:
     def _library_track_id(resource: AppleMusicTrack, catalog: AppleMusicTrack | None) -> str:
         if catalog is not None:
             return catalog.id
-        elif resource.attributes.play_params and resource.attributes.play_params.catalog_id:
+        if resource.attributes.play_params and resource.attributes.play_params.catalog_id:
             return resource.attributes.play_params.catalog_id
-        else:
-            return resource.id
+        return resource.id
 
     @staticmethod
     def _catalog_track(resource: AppleMusicTrack) -> AppleMusicTrack | None:
@@ -95,7 +97,7 @@ class AppleMusicArtistParser:
     def _albums(resource: AppleMusicArtist, catalog: AppleMusicArtist | None) -> list[Album]:
         if catalog and catalog.relationships and catalog.relationships.albums:
             return [AppleMusicAlbumParser.parse_album(a) for a in catalog.relationships.albums.data]
-        elif resource.relationships and resource.relationships.albums:
+        if resource.relationships and resource.relationships.albums:
             return [AppleMusicAlbumParser.parse_album(a) for a in resource.relationships.albums.data]
         raise ValueError("Artist has no albums.")
 
@@ -230,7 +232,8 @@ class AppleMusicLicenseParser:
                 -1021: "Device has insufficient security level.",
             }
             error_msg = error_messages.get(status, status) or "Unknown"
-            raise ValueError(f"License error: {error_msg}")
+            msg = f"License error: {error_msg}"
+            raise ValueError(msg)
 
     @staticmethod
     def check_license(licence: str) -> None:

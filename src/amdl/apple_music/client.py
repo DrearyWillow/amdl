@@ -1,12 +1,10 @@
 import base64
 import logging
-from collections.abc import Mapping
-from typing import cast
+from typing import TYPE_CHECKING, cast
 from urllib.parse import parse_qs, urlparse
 
 from requests import Session
 
-from amdl.apple_music.auth import AppleMusicAuthenticator
 from amdl.apple_music.ids import is_library_album, is_library_artist, is_library_playlist, is_library_track
 from amdl.apple_music.schemas import AppleMusicPlaylistTracksResponse
 from amdl.config import (
@@ -16,8 +14,6 @@ from amdl.config import (
     WEB_PLAYBACK_URL,
     WIDEVINE_CERT_URL,
 )
-from amdl.domain import Album, Artist, PlaybackSong, Playlist, Track
-from amdl.json_type import JSON
 lazy from amdl.apple_music.parsers import (
     AppleMusicAlbumParser,
     AppleMusicArtistParser,
@@ -26,6 +22,13 @@ lazy from amdl.apple_music.parsers import (
     AppleMusicPlaylistParser,
     AppleMusicTrackParser,
 )
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping
+
+    from amdl.apple_music.auth import AppleMusicAuthenticator
+    from amdl.domain import Album, Artist, PlaybackSong, Playlist, Track
+    from amdl.json_type import JSON
 
 logger = logging.getLogger(__name__)
 
@@ -51,12 +54,12 @@ class AppleMusicClient:
     def post(self, url: str, json: Mapping[str, str | bool]) -> JSON:
         response = self.http.post(url, headers=self.headers(), json=json)
         response.raise_for_status()
-        return cast(JSON, response.json())
+        return cast("JSON", response.json())
 
     def get(self, url: str, params: Mapping[str, str | int] | None = None) -> JSON:
         response = self.http.get(url, headers=self.headers(), params=params)
         response.raise_for_status()
-        return cast(JSON, response.json())
+        return cast("JSON", response.json())
 
     def get_album(self, album_id: str) -> Album:
         route = "me/library/albums" if is_library_album(album_id) else "catalog/us/albums"
@@ -85,7 +88,7 @@ class AppleMusicClient:
                 self.get(
                     f"{APPLE_MUSIC_API}/{route}/{playlist_id}/tracks",
                     params={"offset": offset, "limit": limit, "include[library-songs]": "artists,catalog"},
-                )
+                ),
             )
             tracks = [AppleMusicTrackParser.parse_track(t) for t in response.data]
             if response.next and (offsets := parse_qs(urlparse(response.next).query).get("offset")):

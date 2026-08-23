@@ -12,7 +12,8 @@ from amdl.apple_music.schemas import (
 
 
 class TestAttributeValidators:
-    def test_album_attributes_strips_single_and_ep_suffix(self) -> None:
+    @staticmethod
+    def test_album_attributes_strips_single_and_ep_suffix() -> None:
         raw = {
             "name": "Testing Title - Single",
             "artistName": "Artist",
@@ -26,7 +27,8 @@ class TestAttributeValidators:
         attrs_ep = AppleMusicAlbumAttributes.model_validate(raw)
         assert attrs_ep.name == "Testing Title"
 
-    def test_track_attributes_strips_album_name_suffixes(self) -> None:
+    @staticmethod
+    def test_track_attributes_strips_album_name_suffixes() -> None:
         raw = {
             "name": "Track Name",
             "artistName": "Artist",
@@ -39,7 +41,8 @@ class TestAttributeValidators:
         attrs = AppleMusicTrackAttributes.model_validate(raw)
         assert attrs.album_name == "Project Name"
 
-    def test_album_attributes_normalizes_year_only_release_date(self) -> None:
+    @staticmethod
+    def test_album_attributes_normalizes_year_only_release_date() -> None:
         raw = {
             "name": "Test Album",
             "artistName": "Artist",
@@ -51,7 +54,8 @@ class TestAttributeValidators:
 
         assert attrs.release_date == date(2026, 1, 1)
 
-    def test_track_attributes_normalizes_year_only_release_date(self) -> None:
+    @staticmethod
+    def test_track_attributes_normalizes_year_only_release_date() -> None:
         raw = {
             "name": "Track Name",
             "artistName": "Artist",
@@ -68,7 +72,8 @@ class TestAttributeValidators:
 
 
 class TestPlaybackSchemas:
-    def test_playback_response_camel_case_aliases(self) -> None:
+    @staticmethod
+    def test_playback_response_camel_case_aliases() -> None:
         raw = {
             "customerMessage": "Error occurred",
             "songList": [{"assets": [{"flavor": "2b:ctrp256", "URL": "https://example.com/stream.m3u8"}]}],
@@ -81,12 +86,14 @@ class TestPlaybackSchemas:
 
 
 class TestLicenseSchemas:
-    def test_license_response_validation(self) -> None:
+    @staticmethod
+    def test_license_response_validation() -> None:
         raw = {"status": 0, "license": "base64encodedlicense"}
         resp = AppleMusicLicenseResponse.model_validate(raw)
         assert resp.status == 0
         assert resp.license == "base64encodedlicense"
 
-    def test_license_response_missing_keys_raises(self) -> None:
+    @staticmethod
+    def test_license_response_missing_keys_raises() -> None:
         with pytest.raises(ValidationError):
             _ = AppleMusicLicenseResponse.model_validate({"status": 0})
