@@ -1,3 +1,4 @@
+import logging
 import re
 from dataclasses import dataclass
 
@@ -6,6 +7,8 @@ from keyring.errors import PasswordDeleteError
 from playwright.sync_api import BrowserContext, sync_playwright
 
 from amdl.config import APPLE_MUSIC_URL, KEYRING_NAME
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -34,6 +37,7 @@ class AppleMusicAuthenticator:
         return True
 
     def clear_credentials(self) -> None:
+        logger.debug("Deleting credentials from keyring")
         self.credentials = None
         for key in ("user_token", "media_token"):
             try:
@@ -95,5 +99,5 @@ class AppleMusicAuthenticator:
         match = re.search(r'"(eyJ[A-Za-z0-9\-_]+\.eyJ[A-Za-z0-9\-_]+\.[A-Za-z0-9\-_]+)"', js)
         if not match:
             raise RuntimeError("Could not find media token in JS")
-        token = match.group(1)
-        return token
+
+        return match.group(1)

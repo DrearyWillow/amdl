@@ -9,6 +9,10 @@ logger = logging.getLogger(__name__)
 
 
 def embed_track_metadata(track: Track, path: Path, url: str | None = None, artwork: bytes | None = None) -> None:
+    logger.debug(
+        f"Embedding metadata: {track.name=}, {track.track_number=}, {track.artist_name=}, {track.album_name=}, {track.release_date=}"
+    )
+
     mp4 = MP4(path)
 
     if mp4.tags is None:

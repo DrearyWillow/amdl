@@ -2,7 +2,7 @@ import logging
 
 from amdl.apple_music.auth import AppleMusicAuthenticator
 from amdl.apple_music.urls import parse_apple_music_url
-from amdl.cli import ArgParser, define_logger
+from amdl.cli import ArgParser
 from amdl.downloader import Downloader
 
 logger = logging.getLogger(__name__)
@@ -10,7 +10,6 @@ logger = logging.getLogger(__name__)
 
 def main() -> None:
     args = ArgParser.parse()
-    define_logger(args.debug)
     auth = AppleMusicAuthenticator()
 
     if args.logout:

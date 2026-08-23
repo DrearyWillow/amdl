@@ -8,6 +8,8 @@ import keyring
 
 from amdl.config import KEYRING_NAME
 
+logger = logging.getLogger(__name__)
+
 
 @dataclass(frozen=True)
 class Arguments:
@@ -51,16 +53,6 @@ class ArgParser:
         if arguments.save_dir and arguments.directory is None:
             parser.error("--save-dir requires --directory is specified")
 
-    @staticmethod
-    def directory(directory: Path | None, save_dir: bool) -> Path:
-        if directory is not None:
-            if save_dir:
-                keyring.set_password(KEYRING_NAME, "directory", str(directory))
-            return directory
-
-        saved_dir = keyring.get_password(KEYRING_NAME, "directory")
-        return Path(saved_dir).expanduser() if saved_dir else Path.cwd()
-
     @classmethod
     def parse(cls) -> Arguments:
         parser = cls.create_parser()
@@ -75,19 +67,32 @@ class ArgParser:
         )
 
         cls.validate(parsed, parser)
+        cls.define_logger(parsed.debug)
         directory = cls.directory(parsed.directory, parsed.save_dir)
+        logger.debug(f"Determined output directory: {directory}")
         return Arguments(parsed.url, directory, parsed.save_dir, parsed.logout, parsed.debug)
 
+    @staticmethod
+    def directory(directory: Path | None, save_dir: bool) -> Path:
+        if directory is not None:
+            if save_dir:
+                logger.debug(f"Saving output directory `{directory}` for subsequent runs")
+                keyring.set_password(KEYRING_NAME, "directory", str(directory))
+            return directory
 
-def define_logger(debug_mode: bool) -> None:
-    RESET = "\033[0m"
-    MAGENTA = "\033[35m"
-    CYAN = "\033[36m"
-    WHITE = "\033[37m"
+        saved_dir = keyring.get_password(KEYRING_NAME, "directory")
+        return Path(saved_dir).expanduser() if saved_dir else Path.cwd()
 
-    if not debug_mode:
-        logging.basicConfig(format="%(message)s", level=logging.INFO)
-        return
+    @staticmethod
+    def define_logger(debug_mode: bool) -> None:
+        RESET = "\033[0m"
+        MAGENTA = "\033[35m"
+        CYAN = "\033[36m"
+        WHITE = "\033[37m"
 
-    fmt = f"{CYAN}%(asctime)s:%(msecs)03d{RESET} {WHITE}%(levelname)s{RESET} {MAGENTA}%(name)s{RESET} %(message)s"
-    logging.basicConfig(format=fmt, level=logging.DEBUG, datefmt="%H:%M:%S")
+        if not debug_mode:
+            logging.basicConfig(format="%(message)s", level=logging.INFO)
+            return
+
+        fmt = f"{CYAN}%(asctime)s:%(msecs)03d{RESET} {WHITE}%(levelname)s{RESET} {MAGENTA}%(name)s{RESET} %(message)s"
+        logging.basicConfig(format=fmt, level=logging.DEBUG, datefmt="%H:%M:%S")

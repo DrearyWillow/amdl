@@ -55,6 +55,7 @@ class Downloader:
         }[am_type]
 
     def download(self, am_type: AppleMusicType, resource_id: str, output_dir: Path, input_url: str) -> None:
+        logger.debug(f"Initiating download for {am_type.name} {resource_id}")
         track_contexts = self._map_downloader(am_type)(resource_id, output_dir, input_url)
         futures = [self.executor.submit(self._download_context, context) for context in track_contexts]
         for future in as_completed(futures):

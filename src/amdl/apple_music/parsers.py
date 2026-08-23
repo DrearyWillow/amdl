@@ -1,3 +1,5 @@
+import logging
+
 from amdl.apple_music.ids import is_library_album, is_library_track
 from amdl.apple_music.schemas import (
     AppleMusicAlbum,
@@ -13,6 +15,8 @@ from amdl.apple_music.schemas import (
 )
 from amdl.domain import Album, Artist, Playback, Playlist, Track
 from amdl.json_type import JSON
+
+logger = logging.getLogger(__name__)
 
 
 class AppleMusicTrackParser:
@@ -67,7 +71,9 @@ class AppleMusicArtistParser:
     def parse(cls, data: JSON) -> Artist:
         response = AppleMusicArtistResponse.model_validate(data)
         resource = response.data[0]
-        return cls.parse_artist(resource)
+        artist = cls.parse_artist(resource)
+        logger.debug(f"Found {len(artist.albums)} albums in playlist")
+        return artist
 
     @classmethod
     def parse_artist(cls, resource: AppleMusicArtist) -> Artist:
@@ -87,7 +93,7 @@ class AppleMusicArtistParser:
             return [AppleMusicAlbumParser.parse_album(a) for a in catalog.relationships.albums.data]
         elif resource.relationships and resource.relationships.albums:
             return [AppleMusicAlbumParser.parse_album(a) for a in resource.relationships.albums.data]
-        return []
+        raise ValueError("Artist response included no albums")
 
     @staticmethod
     def _catalog_artist(resource: AppleMusicArtist) -> AppleMusicArtist | None:
@@ -107,7 +113,9 @@ class AppleMusicPlaylistParser:
     def parse(cls, data: JSON) -> Playlist:
         response = AppleMusicPlaylistResponse.model_validate(data)
         resource = response.data[0]
-        return cls.parse_playlist(resource)
+        playlist = cls.parse_playlist(resource)
+        logger.debug(f"Found {len(playlist.tracks)} tracks in playlist")
+        return playlist
 
     @classmethod
     def parse_playlist(cls, resource: AppleMusicPlaylist) -> Playlist:
@@ -118,29 +126,14 @@ class AppleMusicPlaylistParser:
         )
 
 
-class AppleMusicPlaybackParser:
-    @classmethod
-    def parse(cls, data: JSON) -> Playback:
-        response = AppleMusicPlaybackResponse.model_validate(data)
-        if (message := cls.failure_message(response)) is not None:
-            raise ValueError(message)
-        if response.song_list is None:
-            raise ValueError("Playback response missing songs list")
-        return Playback(songs=response.song_list)
-
-    @staticmethod
-    def failure_message(response: AppleMusicPlaybackResponse) -> str | None:
-        if response.dialog and response.dialog.message:
-            return response.dialog.message
-        return response.customer_message or response.failure_type
-
-
 class AppleMusicAlbumParser:
     @classmethod
     def parse(cls, data: JSON) -> Album:
         response = AppleMusicAlbumResponse.model_validate(data)
         resource = response.data[0]
-        return cls.parse_album(resource)
+        album = cls.parse_album(resource)
+        logger.debug(f"Found {len(album.tracks)} tracks in album")
+        return album
 
     @classmethod
     def parse_album(cls, resource: AppleMusicAlbum) -> Album:
@@ -183,6 +176,23 @@ class AppleMusicAlbumParser:
             return None
 
         return catalog.data[0]
+
+
+class AppleMusicPlaybackParser:
+    @classmethod
+    def parse(cls, data: JSON) -> Playback:
+        response = AppleMusicPlaybackResponse.model_validate(data)
+        if (message := cls.failure_message(response)) is not None:
+            raise ValueError(message)
+        if response.song_list is None:
+            raise ValueError("Playback response missing songs list")
+        return Playback(songs=response.song_list)
+
+    @staticmethod
+    def failure_message(response: AppleMusicPlaybackResponse) -> str | None:
+        if response.dialog and response.dialog.message:
+            return response.dialog.message
+        return response.customer_message or response.failure_type
 
 
 class AppleMusicLicenseParser:
