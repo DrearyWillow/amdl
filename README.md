@@ -12,4 +12,4 @@ installation:
 uv tool install --no-dev git+https://github.com/DrearyWillow/amdl.git
 ```
 
-the first run will authenticate your apple music subscription through a browser. credentials are stored for subsequent runs.
+on the first run, amdl opens a browser for you to log in to your apple music account. auth tokens are stored in your keyring for subsequent runs.
