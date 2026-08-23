@@ -12,7 +12,7 @@ from amdl.apple_music.urls import AppleMusicType
 from amdl.domain import Album, Track
 from amdl.media.downloader import MediaDownloader
 from amdl.media.drm import WidevineDRM
-from amdl.media.hls import HLSManifest
+from amdl.media.hls import get_hls_playlist
 from amdl.media.metadata import embed_track_metadata, save_artwork
 from amdl.media.paths import (
     album_artwork_path,
@@ -55,7 +55,7 @@ class Downloader:
         }[am_type]
 
     def download(self, am_type: AppleMusicType, resource_id: str, output_dir: Path, input_url: str) -> None:
-        logger.debug(f"Initiating download for {am_type.name} {resource_id}")
+        logger.info(f"Initiating download for {am_type.name} {resource_id}")
         track_contexts = self._map_downloader(am_type)(resource_id, output_dir, input_url)
         futures = [self.executor.submit(self._download_context, context) for context in track_contexts]
         for future in as_completed(futures):
@@ -74,15 +74,10 @@ class Downloader:
 
     def _download_track_audio(self, track: Track, output_path: Path) -> None:
         output_path.parent.mkdir(parents=True, exist_ok=True)
-
         playback = self.client.get_playback(track.id)
-
-        playlist_url = HLSManifest.extract_playlist_url(playback)
-        media_url = HLSManifest.extract_media_url(playlist_url)
-        kid = HLSManifest.extract_kid(playlist_url)
-
-        key = self.drm.get_content_key(kid, track.id)
-        self.media_downloader.download_and_decrypt(media_url, output_path, kid, key)
+        hls = get_hls_playlist(playback)
+        key = self.drm.get_content_key(hls.kid, track.id)
+        self.media_downloader.download_and_decrypt(hls.media_url, output_path, hls.kid, key)
         logger.info(f"Downloaded track {track.id} to {output_path}")
 
     def _prepare_album_contexts(self, album: Album, output_dir: Path, input_url: str) -> list[TrackContext]:

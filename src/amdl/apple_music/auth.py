@@ -5,6 +5,7 @@ from dataclasses import dataclass
 lazy import keyring
 lazy from keyring.errors import PasswordDeleteError
 lazy from playwright.sync_api import BrowserContext, sync_playwright
+lazy from playwright.sync_api import Error as PlaywrightError
 
 from amdl.config import APPLE_MUSIC_URL, KEYRING_NAME
 
@@ -17,9 +18,25 @@ class AppleMusicCredentials:
     media_token: str
 
 
+class LoginCancelled(Exception):
+    pass
+
+
 class AppleMusicAuthenticator:
     def __init__(self) -> None:
         self.credentials: AppleMusicCredentials | None = None
+
+    def startup(self, logout: bool = False) -> None:
+        if logout:
+            self.clear_credentials()
+            raise SystemExit("Logged out")
+        try:
+            if not self.login():
+                logger.warning("Authentication failed. Clearing credentials and prompting login.")
+                if not self.login():
+                    raise SystemExit("Authentication failed.")
+        except LoginCancelled:
+            raise SystemExit("Login cancelled: browser was closed")
 
     def login(self) -> bool:
         credentials = self._load_credentials()
@@ -34,6 +51,7 @@ class AppleMusicAuthenticator:
 
         self.credentials = credentials
         self._save_credentials(credentials)
+        logger.info("Authentication successful")
         return True
 
     def clear_credentials(self) -> None:
@@ -67,7 +85,15 @@ class AppleMusicAuthenticator:
                     if user_token is not None:
                         media_token = self._acquire_media_token(context)
                         return AppleMusicCredentials(user_token, media_token)
-                    page.wait_for_timeout(500)
+
+                    if page.is_closed():
+                        raise LoginCancelled("Browser was closed")
+
+                    try:
+                        page.wait_for_timeout(500)
+                    except PlaywrightError:
+                        raise LoginCancelled("Browser was closed")
+
             finally:
                 browser.close()
 

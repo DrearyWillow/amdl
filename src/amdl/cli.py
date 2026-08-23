@@ -76,7 +76,7 @@ class ArgParser:
     def directory(directory: Path | None, save_dir: bool) -> Path:
         if directory is not None:
             if save_dir:
-                logger.debug(f"Saving output directory `{directory}` for subsequent runs")
+                logger.info(f"Saving output directory `{directory}` for subsequent runs")
                 keyring.set_password(KEYRING_NAME, "directory", str(directory))
             return directory
 
