@@ -20,7 +20,6 @@ class ArgParser:
         _ = parser.add_argument("url", nargs="?", help="Apple Music URL to download")
         _ = parser.add_argument("-d", "--directory", type=Path, help="Directory to download to")
         _ = parser.add_argument("--logout", action="store_true", help="Clear stored Apple Music credentials")
-        _ = parser.add_argument("--art", dest="only_artwork", action="store_true", help="Only download artwork")
         _ = parser.add_argument("--debug", action="store_true", help="Display debug logging")
         return parser
 

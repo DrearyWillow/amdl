@@ -16,16 +16,6 @@ class TestParseAppleMusicUrl:
             ("https://music.apple.com/us/artist/artist-name/123456789", AppleMusicType.ARTIST, "123456789"),
             # Playlists
             ("https://music.apple.com/us/playlist/playlist-name/pl.abc123", AppleMusicType.PLAYLIST, "pl.abc123"),
-            # Music videos
-            ("https://music.apple.com/us/music-video/video-title/123456789", AppleMusicType.MUSIC_VIDEO, "123456789"),
-            # Stations
-            ("https://music.apple.com/us/station/station-name/ra.abc123", AppleMusicType.STATION, "ra.abc123"),
-            # Curators
-            ("https://music.apple.com/us/curator/curator-name/123456789", AppleMusicType.CURATOR, "123456789"),
-            # Apple curators
-            ("https://music.apple.com/us/apple-curator/curator-name/123456", AppleMusicType.APPLE_CURATOR, "123456"),
-            # Record labels
-            ("https://music.apple.com/us/record-label/label-name/123456789", AppleMusicType.RECORD_LABEL, "123456789"),
         ],
     )
     def test_parse_catalog_urls(self, url: str, expected_type: AppleMusicType, expected_id: str) -> None:
@@ -51,46 +41,18 @@ class TestParseAppleMusicUrl:
         [
             (
                 "https://music.apple.com/library/playlist/p.zp6KmqEimaVK87K",
-                AppleMusicType.LIBRARY_PLAYLIST,
+                AppleMusicType.PLAYLIST,
                 "p.zp6KmqEimaVK87K",
             ),
-            (
-                "https://music.apple.com/library/artists/r.abc123",
-                AppleMusicType.LIBRARY_ARTIST,
-                "r.abc123",
-            ),
-            (
-                "https://music.apple.com/library/albums/l.abc123",
-                AppleMusicType.LIBRARY_ALBUM,
-                "l.abc123",
-            ),
-            (
-                "https://music.apple.com/library/songs/i.abc123",
-                AppleMusicType.LIBRARY_SONG,
-                "i.abc123",
-            ),
-            (
-                "https://music.apple.com/us/library/playlist/p.abc123",
-                AppleMusicType.LIBRARY_PLAYLIST,
-                "p.abc123",
-            ),
+            ("https://music.apple.com/library/artists/r.abc123", AppleMusicType.ARTIST, "r.abc123"),
+            ("https://music.apple.com/library/albums/l.abc123", AppleMusicType.ALBUM, "l.abc123"),
+            ("https://music.apple.com/library/songs/i.abc123", AppleMusicType.SONG, "i.abc123"),
+            ("https://music.apple.com/us/library/playlist/p.abc123", AppleMusicType.PLAYLIST, "p.abc123"),
         ],
     )
     def test_parse_library_urls(self, url: str, expected_type: AppleMusicType, expected_id: str) -> None:
         url_type, am_id = parse_apple_music_url(url)
         assert url_type == expected_type
-        assert am_id == expected_id
-
-    @pytest.mark.parametrize(
-        "url, expected_id",
-        [
-            ("https://music.apple.com/profile/Kiririn", "Kiririn"),
-            ("https://music.apple.com/profile/drearywillow", "drearywillow"),
-        ],
-    )
-    def test_parse_profile_urls(self, url: str, expected_id: str) -> None:
-        url_type, am_id = parse_apple_music_url(url)
-        assert url_type == AppleMusicType.PROFILE
         assert am_id == expected_id
 
     @pytest.mark.parametrize(

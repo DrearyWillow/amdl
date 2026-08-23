@@ -6,18 +6,21 @@ from pathlib import Path
 from types import TracebackType
 from typing import Self
 
-from amdl.apple_music import AppleMusicAuthenticator, AppleMusicClient, AppleMusicType
+from amdl.apple_music.auth import AppleMusicAuthenticator
+from amdl.apple_music.client import AppleMusicClient
+from amdl.apple_music.urls import AppleMusicType
 from amdl.domain import Album, Track
-from amdl.media import (
-    HLSManifest,
-    MediaDownloader,
-    WidevineDRM,
+from amdl.media.downloader import MediaDownloader
+from amdl.media.drm import WidevineDRM
+from amdl.media.hls import HLSManifest
+from amdl.media.metadata import embed_track_metadata, save_artwork
+from amdl.media.paths import (
+    album_artwork_path,
     album_track_path,
-    embed_track_metadata,
+    playlist_artwork_path,
+    playlist_track_path,
     track_path,
 )
-from amdl.media.metadata import save_artwork
-from amdl.media.paths import album_artwork_path, playlist_artwork_path, playlist_track_path
 
 logger = logging.getLogger(__name__)
 

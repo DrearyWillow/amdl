@@ -1,6 +1,7 @@
 from pathlib import Path
 
-from amdl.apple_music import AppleMusicAuthenticator, parse_apple_music_url
+from amdl.apple_music.auth import AppleMusicAuthenticator
+from amdl.apple_music.urls import parse_apple_music_url
 from amdl.cli import ArgParser, define_logger
 from amdl.config import SAVE_DIRECTORY
 from amdl.downloader import Downloader

@@ -7,7 +7,7 @@ from urllib.parse import parse_qs, urlparse
 from requests import Session
 
 from amdl.apple_music.auth import AppleMusicAuthenticator
-from amdl.apple_music.ids import is_library_album, is_library_artist, is_library_track
+from amdl.apple_music.ids import is_library_album, is_library_artist, is_library_playlist, is_library_track
 from amdl.apple_music.parsers import (
     AppleMusicAlbumParser,
     AppleMusicArtistParser,
@@ -28,6 +28,7 @@ from amdl.domain import Album, Artist, Playback, Playlist, Track
 from amdl.json_type import JSON
 
 logger = logging.getLogger(__name__)
+
 
 class AppleMusicClient:
     def __init__(self, auth: AppleMusicAuthenticator) -> None:
@@ -58,49 +59,31 @@ class AppleMusicClient:
         return cast(JSON, response.json())
 
     def get_album(self, album_id: str) -> Album:
-        if is_library_album(album_id):
-            response = self.get(
-                f"{APPLE_MUSIC_API}/me/library/albums/{album_id}",
-                params={
-                    "include": "catalog,artists,songs",
-                    "include[songs]": "artists",
-                },
-            )
-        else:
-            response = self.get(
-                f"{APPLE_MUSIC_API}/catalog/us/albums/{album_id}",
-                params={
-                    "include": "artists",
-                    "include[songs]": "artists",
-                },
-            )
+        route = "me/library/albums" if is_library_album(album_id) else "catalog/us/albums"
+        params = {"include": "catalog,songs"} if is_library_album(album_id) else None
+        response = self.get(f"{APPLE_MUSIC_API}/{route}/{album_id}", params=params)
         return AppleMusicAlbumParser.parse(response)
 
     def get_track(self, track_id: str) -> Track:
-        path = f"me/library/songs/{track_id}" if is_library_track(track_id) else f"catalog/us/songs/{track_id}"
-        response = self.get(f"{APPLE_MUSIC_API}/{path}", params={"include": "albums,catalog"})
-        # TODO: add back artists (in parser too)
-        # https://github.com/DrearyWillow/coda/blob/master/src/coda/core/converters.py
+        route = "me/library/songs" if is_library_track(track_id) else "catalog/us/songs"
+        response = self.get(f"{APPLE_MUSIC_API}/{route}/{track_id}", params={"include": "albums,catalog"})
         return AppleMusicTrackParser.parse(response)
 
     def get_artist(self, artist_id: str) -> Artist:
-        if is_library_artist(artist_id):
-            response = self.get(
-                f"{APPLE_MUSIC_API}/me/library/artists/{artist_id}",
-                params={"include": "catalog,albums", "include[albums]": "tracks"},
-            )
-        else:
-            response = self.get(
-                f"{APPLE_MUSIC_API}/catalog/us/artists/{artist_id}",
-                params={"include": "albums", "include[albums]": "tracks"},
-            )
+        route = "me/library/artists" if is_library_artist(artist_id) else "catalog/us/artists"
+        response = self.get(
+            f"{APPLE_MUSIC_API}/{route}/{artist_id}",
+            params={"include": "catalog,albums", "include[albums]": "tracks"},
+        )
         return AppleMusicArtistParser.parse(response)
 
     def get_playlist(self, playlist_id: str) -> Playlist:
+        route = "me/library/playlists" if is_library_playlist(playlist_id) else "catalog/us/playlists"
+
         def get_playlist_tracks(playlist_id: str, offset: int = 0, limit: int = 100) -> list[Track]:
             response = AppleMusicPlaylistTracksResponse.model_validate(
                 self.get(
-                    f"{APPLE_MUSIC_API}/me/library/playlists/{playlist_id}/tracks",
+                    f"{APPLE_MUSIC_API}/{route}/{playlist_id}/tracks",
                     params={"offset": offset, "limit": limit, "include[library-songs]": "artists,catalog"},
                 )
             )
@@ -109,7 +92,7 @@ class AppleMusicClient:
                 tracks.extend(get_playlist_tracks(playlist_id, int(offsets[0]), limit))
             return tracks
 
-        playlist = AppleMusicPlaylistParser.parse(self.get(f"{APPLE_MUSIC_API}/me/library/playlists/{playlist_id}"))
+        playlist = AppleMusicPlaylistParser.parse(self.get(f"{APPLE_MUSIC_API}/{route}/{playlist_id}"))
         playlist.tracks = get_playlist_tracks(playlist_id)
         return playlist
 

@@ -8,3 +8,7 @@ def is_library_track(track_id: str) -> bool:
 
 def is_library_artist(artist_id: str) -> bool:
     return artist_id.startswith("r.")
+
+
+def is_library_playlist(playlist_id: str) -> bool:
+    return playlist_id.startswith("p.")

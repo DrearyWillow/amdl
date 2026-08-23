@@ -101,6 +101,7 @@ class AppleMusicArtistParser:
 
         return catalog.data[0]
 
+
 class AppleMusicPlaylistParser:
     @classmethod
     def parse(cls, data: JSON) -> Playlist:
