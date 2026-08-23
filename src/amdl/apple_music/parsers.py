@@ -30,20 +30,14 @@ class AppleMusicTrackParser:
     def parse_track(cls, resource: AppleMusicTrack) -> Track:
         if is_library_track(resource.id):
             catalog = cls._catalog_track(resource)
-            if catalog is not None:
-                catalog_id: str | None = catalog.id
-            elif resource.attributes.play_params:
-                catalog_id = resource.attributes.play_params.catalog_id
-            else:
-                catalog_id = None
+            track_id = cls._library_track_id(resource, catalog)
             attributes = catalog.attributes if catalog is not None else resource.attributes
         else:
-            catalog_id = resource.id
+            track_id = resource.id
             attributes = resource.attributes
 
         return Track(
-            library_id=resource.id,
-            catalog_id=catalog_id,
+            id=track_id,
             name=attributes.name,
             artist_name=attributes.artist_name,
             album_name=attributes.album_name,
@@ -52,6 +46,15 @@ class AppleMusicTrackParser:
             artwork_url=attributes.artwork.url,
             url=attributes.url,
         )
+    
+    @staticmethod
+    def _library_track_id(resource: AppleMusicTrack, catalog: AppleMusicTrack | None) -> str:
+        if catalog is not None:
+            return catalog.id
+        elif resource.attributes.play_params and resource.attributes.play_params.catalog_id:
+            return resource.attributes.play_params.catalog_id
+        else:
+            return resource.id
 
     @staticmethod
     def _catalog_track(resource: AppleMusicTrack) -> AppleMusicTrack | None:
@@ -81,7 +84,7 @@ class AppleMusicArtistParser:
         attributes = catalog.attributes if catalog is not None else resource.attributes
 
         return Artist(
-            artist_id=catalog.id if catalog else resource.id,
+            id=catalog.id if catalog else resource.id,
             name=attributes.name,
             artwork_url=attributes.artwork.url if attributes.artwork else None,
             albums=cls._albums(resource, catalog),
@@ -140,16 +143,13 @@ class AppleMusicAlbumParser:
         if is_library_album(resource.id):
             catalog = cls._catalog_album(resource)
             attributes = catalog.attributes if catalog is not None else resource.attributes
-            library_id = resource.id
-            catalog_id = catalog.id if catalog is not None else None
+            album_id = catalog.id if catalog is not None else resource.id
         else:
             attributes = resource.attributes
-            library_id = None
-            catalog_id = resource.id
+            album_id = resource.id
 
         album = Album(
-            library_id=library_id,
-            catalog_id=catalog_id,
+            id=album_id,
             name=attributes.name,
             artist_name=attributes.artist_name,
             artwork_url=attributes.artwork.url,

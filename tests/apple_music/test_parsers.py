@@ -77,16 +77,14 @@ class TestAppleMusicTrackParser:
     def test_parse_catalog_track(self, raw_catalog_track_data: JSON) -> None:
         track = AppleMusicTrackParser.parse(raw_catalog_track_data)
         assert isinstance(track, Track)
-        assert track.library_id == "10001"
-        assert track.catalog_id == "10001"
+        assert track.id == "10001"
         assert track.name == "Track One"
         assert track.release_date == date(2026, 1, 15)
         assert track.artwork_url == "https://example.com/9999x9999bb.jpg"
 
     def test_parse_library_track_with_catalog_relationship(self, raw_library_track_data: JSON) -> None:
         track = AppleMusicTrackParser.parse(raw_library_track_data)
-        assert track.library_id == "i.libtrack1"
-        assert track.catalog_id == "20002"
+        assert track.id == "20002"
         assert track.name == "Catalog Track Name"
         assert track.artist_name == "Catalog Artist"
 
@@ -114,8 +112,7 @@ class TestAppleMusicTrackParser:
 
         track = AppleMusicTrackParser.parse(data)
 
-        assert track.library_id == "i.libtrack1"
-        assert track.catalog_id == "20002"
+        assert track.id == "20002"
         assert track.name == "Library Track Name"
 
     def test_parse_library_track_without_catalog_or_play_params(self) -> None:
@@ -139,8 +136,7 @@ class TestAppleMusicTrackParser:
 
         track = AppleMusicTrackParser.parse(data)
 
-        assert track.library_id == "i.libtrack1"
-        assert track.catalog_id is None
+        assert track.id == "i.libtrack1"
         assert track.name == "Library Track Name"
         assert track.artist_name == "Library Artist"
 
@@ -172,8 +168,7 @@ class TestAppleMusicTrackParser:
 
         track = AppleMusicTrackParser.parse(data)
 
-        assert track.library_id == "i.libtrack1"
-        assert track.catalog_id == "20002"
+        assert track.id == "20002"
         assert track.name == "Library Track Name"
 
 
@@ -229,8 +224,7 @@ class TestAppleMusicAlbumParser:
         }
         album = AppleMusicAlbumParser.parse(raw_album)
         assert isinstance(album, Album)
-        assert album.catalog_id == "album123"
-        assert album.library_id is None
+        assert album.id == "album123"
         assert album.name == "Full Album"
         assert len(album.tracks) == 1
         assert album.tracks[0].name == "Track One"
@@ -287,8 +281,7 @@ class TestAppleMusicAlbumParser:
 
         album = AppleMusicAlbumParser.parse(data)
 
-        assert album.library_id == "l.libalbum1"
-        assert album.catalog_id == "catalogalbum1"
+        assert album.id == "catalogalbum1"
         assert album.name == "Catalog Album"
         assert album.artist_name == "Catalog Artist"
         assert len(album.tracks) == 1
@@ -314,8 +307,7 @@ class TestAppleMusicAlbumParser:
 
         album = AppleMusicAlbumParser.parse(data)
 
-        assert album.library_id == "l.libalbum1"
-        assert album.catalog_id is None
+        assert album.id == "l.libalbum1"
         assert album.name == "Library Album"
         assert album.artist_name == "Library Artist"
 
@@ -469,7 +461,7 @@ class TestAppleMusicArtistParser:
         artist = AppleMusicArtistParser.parse(data)
 
         assert isinstance(artist, Artist)
-        assert artist.artist_id == "artist1"
+        assert artist.id == "artist1"
         assert artist.name == "Test Artist"
         assert len(artist.albums) == 1
         assert artist.albums[0].name == "Album One"
@@ -508,7 +500,7 @@ class TestAppleMusicArtistParser:
 
         artist = AppleMusicArtistParser.parse(data)
 
-        assert artist.artist_id == "artist1"
+        assert artist.id == "artist1"
         assert artist.name == "Catalog Artist"
         assert len(artist.albums) == 1
         assert artist.albums[0].name == "Catalog Album"
@@ -552,7 +544,7 @@ class TestAppleMusicArtistParser:
 
         artist = AppleMusicArtistParser.parse(data)
 
-        assert artist.artist_id == "artist1"
+        assert artist.id == "artist1"
         assert artist.name == "Test Artist"
         assert artist.artwork_url is None
 
