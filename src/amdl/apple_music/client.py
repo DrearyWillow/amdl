@@ -8,14 +8,6 @@ from requests import Session
 
 from amdl.apple_music.auth import AppleMusicAuthenticator
 from amdl.apple_music.ids import is_library_album, is_library_artist, is_library_playlist, is_library_track
-from amdl.apple_music.parsers import (
-    AppleMusicAlbumParser,
-    AppleMusicArtistParser,
-    AppleMusicLicenseParser,
-    AppleMusicPlaybackParser,
-    AppleMusicPlaylistParser,
-    AppleMusicTrackParser,
-)
 from amdl.apple_music.schemas import AppleMusicPlaylistTracksResponse
 from amdl.config import (
     APPLE_MUSIC_API,
@@ -26,6 +18,14 @@ from amdl.config import (
 )
 from amdl.domain import Album, Artist, Playback, Playlist, Track
 from amdl.json_type import JSON
+lazy from amdl.apple_music.parsers import (
+    AppleMusicAlbumParser,
+    AppleMusicArtistParser,
+    AppleMusicLicenseParser,
+    AppleMusicPlaybackParser,
+    AppleMusicPlaylistParser,
+    AppleMusicTrackParser,
+)
 
 logger = logging.getLogger(__name__)
 

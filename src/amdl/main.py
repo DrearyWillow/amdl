@@ -1,9 +1,9 @@
 import logging
 
-from amdl.apple_music.auth import AppleMusicAuthenticator
-from amdl.apple_music.urls import parse_apple_music_url
 from amdl.cli import ArgParser
-from amdl.downloader import Downloader
+lazy from amdl.apple_music.auth import AppleMusicAuthenticator
+lazy from amdl.apple_music.urls import parse_apple_music_url
+lazy from amdl.downloader import Downloader
 
 logger = logging.getLogger(__name__)
 

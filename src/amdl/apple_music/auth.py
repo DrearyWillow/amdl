@@ -2,9 +2,9 @@ import logging
 import re
 from dataclasses import dataclass
 
-import keyring
-from keyring.errors import PasswordDeleteError
-from playwright.sync_api import BrowserContext, sync_playwright
+lazy import keyring
+lazy from keyring.errors import PasswordDeleteError
+lazy from playwright.sync_api import BrowserContext, sync_playwright
 
 from amdl.config import APPLE_MUSIC_URL, KEYRING_NAME
 

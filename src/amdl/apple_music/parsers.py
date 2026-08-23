@@ -1,7 +1,9 @@
 import logging
 
 from amdl.apple_music.ids import is_library_album, is_library_track
-from amdl.apple_music.schemas import (
+from amdl.domain import Album, Artist, Playback, Playlist, Track
+from amdl.json_type import JSON
+lazy from amdl.apple_music.schemas import (
     AppleMusicAlbum,
     AppleMusicAlbumResponse,
     AppleMusicArtist,
@@ -13,8 +15,6 @@ from amdl.apple_music.schemas import (
     AppleMusicTrack,
     AppleMusicTrackResponse,
 )
-from amdl.domain import Album, Artist, Playback, Playlist, Track
-from amdl.json_type import JSON
 
 logger = logging.getLogger(__name__)
 
