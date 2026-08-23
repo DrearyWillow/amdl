@@ -30,3 +30,15 @@ class MediaDownloader:
         encrypted_path = self.download_encrypted(media_url, output_path)
         self.decrypt(encrypted_path, output_path, kid, key)
         encrypted_path.unlink(missing_ok=True)
+
+    def download_direct(self, media_url: str, output_path: Path) -> None:
+        media = self.client.fetch_content(media_url)
+        with output_path.open("wb") as file:
+            _ = file.write(media)
+
+    def download(self, media_url: str, output_path: Path, kid: str | None, key: str | None) -> None:
+        if kid is None:
+            return self.download_direct(media_url, output_path)
+        if key is None:
+            raise ValueError("DRM key required when KID is provided")
+        self.download_and_decrypt(media_url, output_path, kid, key)

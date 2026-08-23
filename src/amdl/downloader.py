@@ -12,7 +12,6 @@ from amdl.apple_music.urls import AppleMusicType
 from amdl.domain import Album, Track
 from amdl.media.downloader import MediaDownloader
 from amdl.media.drm import WidevineDRM
-from amdl.media.hls import get_hls_playlist
 from amdl.media.metadata import embed_track_metadata, save_artwork
 from amdl.media.paths import (
     album_artwork_path,
@@ -55,7 +54,7 @@ class Downloader:
         }[am_type]
 
     def download(self, am_type: AppleMusicType, resource_id: str, output_dir: Path, input_url: str) -> None:
-        logger.info(f"Initiating download for {am_type.name} {resource_id}")
+        logger.info("Initiating download for %s %s", am_type.name, resource_id)
         track_contexts = self._map_downloader(am_type)(resource_id, output_dir, input_url)
         futures = [self.executor.submit(self._download_context, context) for context in track_contexts]
         for future in as_completed(futures):
@@ -63,28 +62,20 @@ class Downloader:
 
     def _download_context(self, context: TrackContext) -> None:
         if context.output_path.exists():
-            logger.info(f"Skipping track {context.track.id}: {context.output_path} already exists")
+            logger.info("Skipping track %s: %s already exists", context.track.id, str(context.output_path))
             return
         try:
-            art = self.client.fetch_content(context.track.artwork_url) if context.artwork is None else context.artwork
             self._download_track_audio(context.track, context.output_path)
-            embed_track_metadata(context.track, context.output_path, context.url, art)
+            embed_track_metadata(context.track, context.output_path, context.url, self._get_context_art(context))
         except ValueError as e:
-            logger.info(f"Skipping track {context.track.id}: {e}")
+            logger.info("Skipping track %s: %s", context.track.id, e)
 
     def _download_track_audio(self, track: Track, output_path: Path) -> None:
         output_path.parent.mkdir(parents=True, exist_ok=True)
         playback = self.client.get_playback(track.id)
-        hls = get_hls_playlist(playback)
-        key = self.drm.get_content_key(hls.kid, track.id)
-        self.media_downloader.download_and_decrypt(hls.media_url, output_path, hls.kid, key)
-        logger.info(f"Downloaded track {track.id} to {output_path}")
-
-    def _prepare_album_contexts(self, album: Album, output_dir: Path, input_url: str) -> list[TrackContext]:
-        url = str(album.url or next((t.url for t in album.tracks if t.url is not None), None) or input_url)
-        artwork = self.client.fetch_content(album.artwork_url)
-        save_artwork(artwork, album_artwork_path(output_dir, album))
-        return [TrackContext(track, album_track_path(output_dir, album, track), url, artwork) for track in album.tracks]
+        key = self.drm.get_content_key(playback.kid, track.id) if playback.kid else None
+        self.media_downloader.download(playback.url, output_path, playback.kid, key)
+        logger.info("Downloaded track %s to %s", track.id, str(output_path))
 
     def track(self, track_id: str, output_dir: Path, input_url: str, /) -> Iterable[TrackContext]:
         track = self.client.get_track(track_id)
@@ -106,9 +97,43 @@ class Downloader:
 
     def playlist(self, playlist_id: str, output_dir: Path, input_url: str, /) -> Iterable[TrackContext]:
         playlist = self.client.get_playlist(playlist_id)
-        artwork = self.client.fetch_content(playlist.artwork_url)
-        save_artwork(artwork, playlist_artwork_path(output_dir, playlist))
+
+        if not playlist.tracks:
+            raise ValueError("Playlist has no tracks.")
+
+        if playlist.artwork_url:
+            artwork = self.client.fetch_content(playlist.artwork_url)
+            save_artwork(artwork, playlist_artwork_path(output_dir, playlist))
+
         return (
             TrackContext(track, playlist_track_path(output_dir, playlist, track, num), str(track.url or input_url))
             for num, track in enumerate(playlist.tracks, 1)
         )
+
+    def _prepare_album_contexts(self, album: Album, output_dir: Path, input_url: str) -> list[TrackContext]:
+        url = str(album.url or next((t.url for t in album.tracks if t.url is not None), None) or input_url)
+
+        if artwork_url := self._get_album_artwork_url(album):
+            artwork = self.client.fetch_content(artwork_url)
+            save_artwork(artwork, album_artwork_path(output_dir, album))
+        else:
+            artwork = None
+            logger.debug("Album %s has no artwork.", album.id)
+
+        return [TrackContext(track, album_track_path(output_dir, album, track), url, artwork) for track in album.tracks]
+
+    @staticmethod
+    def _get_album_artwork_url(album: Album) -> str | None:
+        artwork_url = album.artwork_url
+        if artwork_url is None:
+            artwork_url = next((t.artwork_url for t in album.tracks if t.artwork_url is not None), None)
+            if artwork_url is not None:
+                logger.warning("Album %s has no artwork. Using track artwork instead.", album.id)
+        return artwork_url
+
+    def _get_context_art(self, context: TrackContext) -> bytes | None:
+        if context.artwork is not None:
+            return context.artwork
+        elif context.track.artwork_url is not None:
+            return self.client.fetch_content(context.track.artwork_url)
+        return None

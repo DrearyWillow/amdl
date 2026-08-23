@@ -1,24 +1,6 @@
-from dataclasses import dataclass
-
 lazy import m3u8
 
-from amdl.domain import Playback
-
-
-@dataclass
-class HLSPlaylist:
-    media_url: str
-    kid: str
-
-
-def extract_playlist_url(playback: Playback) -> str:
-    quality_priorities = ("28:ctrp256", "32:ctrp64")
-    for song in playback.songs:
-        for target_flavor in quality_priorities:
-            for asset in song.assets:
-                if asset.url and asset.flavor == target_flavor:
-                    return str(asset.url)
-    raise ValueError("No suitable playback URL found")
+from amdl.domain import PlaybackSong
 
 
 def extract_kid(playlist_url: str) -> str:
@@ -38,8 +20,7 @@ def extract_media_url(playlist_url: str) -> str:
     return f"{base_url}/{filename}"
 
 
-def get_hls_playlist(playback: Playback) -> HLSPlaylist:
-    playlist_url = extract_playlist_url(playback)
+def parse_hls_playlist(playlist_url: str) -> PlaybackSong:
     media_url = extract_media_url(playlist_url)
     kid = extract_kid(playlist_url)
-    return HLSPlaylist(media_url, kid)
+    return PlaybackSong(url=media_url, kid=kid)

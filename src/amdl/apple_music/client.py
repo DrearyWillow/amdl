@@ -16,7 +16,7 @@ from amdl.config import (
     WEB_PLAYBACK_URL,
     WIDEVINE_CERT_URL,
 )
-from amdl.domain import Album, Artist, Playback, Playlist, Track
+from amdl.domain import Album, Artist, PlaybackSong, Playlist, Track
 from amdl.json_type import JSON
 lazy from amdl.apple_music.parsers import (
     AppleMusicAlbumParser,
@@ -99,7 +99,7 @@ class AppleMusicClient:
     def get_service_certificate(self) -> bytes:
         return self.http.get(WIDEVINE_CERT_URL).content
 
-    def get_playback(self, track_id: str) -> Playback:
+    def get_playback(self, track_id: str) -> PlaybackSong:
         body = {"universalLibraryId": track_id} if is_library_track(track_id) else {"salableAdamId": track_id}
         return AppleMusicPlaybackParser.parse(self.post(WEB_PLAYBACK_URL, json=body))
 

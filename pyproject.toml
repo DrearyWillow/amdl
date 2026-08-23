@@ -42,6 +42,9 @@ line-length = 120
 quote-style = "double"
 indent-style = "space"
 
+[tool.ruff.lint]
+extend-select = ["G"]
+
 [tool.mypy]
 mypy_path = "src"
 explicit_package_bases = true

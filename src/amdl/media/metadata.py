@@ -10,7 +10,12 @@ logger = logging.getLogger(__name__)
 
 def embed_track_metadata(track: Track, path: Path, url: str | None = None, artwork: bytes | None = None) -> None:
     logger.debug(
-        f"Embedding metadata: {track.name=}, {track.track_number=}, {track.artist_name=}, {track.album_name=}, {track.release_date=}"
+        "Embedding metadata: name=%s, number=%d, artist=%s, album=%s, release=%s",
+        track.name,
+        track.track_number,
+        track.artist_name,
+        track.album_name,
+        str(track.release_date),
     )
 
     mp4 = MP4(path)
@@ -37,7 +42,7 @@ def embed_track_metadata(track: Track, path: Path, url: str | None = None, artwo
 
 def save_artwork(image_bytes: bytes, output_path: Path) -> None:
     if output_path.exists():
-        logger.info(f"Skipping artwork: {output_path} already exists")
+        logger.info("Skipping artwork: %s already exists", str(output_path))
         return
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -45,4 +50,4 @@ def save_artwork(image_bytes: bytes, output_path: Path) -> None:
     with output_path.open("wb") as file:
         _ = file.write(image_bytes)
 
-    logger.info(f"Downloaded artwork to {output_path}")
+    logger.info("Downloaded artwork to %s", str(output_path))

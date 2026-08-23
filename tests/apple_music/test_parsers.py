@@ -10,7 +10,7 @@ from amdl.apple_music.parsers import (
     AppleMusicPlaylistParser,
     AppleMusicTrackParser,
 )
-from amdl.domain import Album, Artist, Playback, Playlist, Track
+from amdl.domain import Album, Artist, PlaybackSong, Playlist, Track
 from amdl.json_type import JSON
 
 
@@ -173,11 +173,25 @@ class TestAppleMusicTrackParser:
 
 
 class TestAppleMusicPlaybackParser:
-    def test_parse_successful_playback(self) -> None:
-        data: JSON = {"songList": [{"assets": [{"flavor": "2b:ctrp256", "URL": "https://example.com/manifest.m3u8"}]}]}
-        playback = AppleMusicPlaybackParser.parse(data)
-        assert isinstance(playback, Playback)
-        assert len(playback.songs) == 1
+    def test_parse_hls_playback(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        expected = PlaybackSong(url="https://example.com/audio.m4a", kid="test-kid")
+        def mock_parse_hls_playlist(url: str) -> PlaybackSong:
+            assert url == "https://example.com/manifest.m3u8"
+            return expected
+        monkeypatch.setattr("amdl.apple_music.parsers.parse_hls_playlist", mock_parse_hls_playlist)
+        data: JSON = {"songList": [{"assets": [{"flavor": "28:ctrp256", "URL": "https://example.com/manifest.m3u8"}]}]}
+        assert AppleMusicPlaybackParser.parse(data) == expected
+
+    def test_parse_direct_playback(self) -> None:
+        data: JSON = {"songList": [{"assets": [{"URL": "https://example.com/audio.m4a"}]}]}
+        assert AppleMusicPlaybackParser.parse(data) == PlaybackSong(url="https://example.com/audio.m4a")
+
+    def test_parse_playback_no_suitable_asset_raises(self) -> None:
+        data: JSON = {
+            "songList": [{"assets": [{"flavor": "something-else", "URL": "https://example.com/manifest.m3u8"}]}]
+        }
+        with pytest.raises(ValueError, match="No suitable playback URL found"):
+            _ = AppleMusicPlaybackParser.parse(data)
 
     def test_parse_playback_failure_dialog_raises(self) -> None:
         data: JSON = {"dialog": {"message": "Geoblocked track"}}
@@ -519,7 +533,7 @@ class TestAppleMusicArtistParser:
             ]
         }
 
-        with pytest.raises(ValueError, match="Artist response included no albums"):
+        with pytest.raises(ValueError, match="Artist has no albums."):
             _ = AppleMusicArtistParser.parse(data)
 
     def test_parse_artist_without_catalog_uses_resource_attributes(self) -> None:
@@ -562,7 +576,7 @@ class TestAppleMusicArtistParser:
             ]
         }
 
-        with pytest.raises(ValueError, match="Artist response included no albums"):
+        with pytest.raises(ValueError, match="Artist has no albums."):
             _ = AppleMusicArtistParser.parse(data)
 
 

@@ -35,7 +35,7 @@ def _resolve_directory(directory: Path | None, save_dir: bool) -> Path:
         return Path(saved_dir).expanduser() if saved_dir else Path.cwd()
 
     if save_dir:
-        logger.info(f"Saving output directory `{directory}` for subsequent runs")
+        logger.info("Saving output directory `%s` for subsequent runs", str(directory))
         keyring.set_password(KEYRING_NAME, "directory", str(directory))
 
     return directory
@@ -94,6 +94,6 @@ def parse_arguments() -> Arguments:
     _configure_logging(parsed.debug)
 
     directory = _resolve_directory(parsed.directory, parsed.save_dir)
-    logger.debug(f"Determined output directory: {directory}")
+    logger.debug("Determined output directory: %s", str(directory))
 
     return Arguments(parsed.url, directory, parsed.save_dir, parsed.logout, parsed.debug)

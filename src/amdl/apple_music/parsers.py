@@ -1,8 +1,9 @@
 import logging
 
 from amdl.apple_music.ids import is_library_album, is_library_track
-from amdl.domain import Album, Artist, Playback, Playlist, Track
+from amdl.domain import Album, Artist, PlaybackSong, Playlist, Track
 from amdl.json_type import JSON
+from amdl.media.hls import parse_hls_playlist
 lazy from amdl.apple_music.schemas import (
     AppleMusicAlbum,
     AppleMusicAlbumResponse,
@@ -43,10 +44,10 @@ class AppleMusicTrackParser:
             album_name=attributes.album_name,
             track_number=attributes.track_number,
             release_date=attributes.release_date,
-            artwork_url=attributes.artwork.url,
+            artwork_url=attributes.artwork.url if attributes.artwork else None,
             url=attributes.url,
         )
-    
+
     @staticmethod
     def _library_track_id(resource: AppleMusicTrack, catalog: AppleMusicTrack | None) -> str:
         if catalog is not None:
@@ -75,7 +76,7 @@ class AppleMusicArtistParser:
         response = AppleMusicArtistResponse.model_validate(data)
         resource = response.data[0]
         artist = cls.parse_artist(resource)
-        logger.debug(f"Found {len(artist.albums)} albums in playlist")
+        logger.debug("Found %d albums in artist", {len(artist.albums)})
         return artist
 
     @classmethod
@@ -96,7 +97,7 @@ class AppleMusicArtistParser:
             return [AppleMusicAlbumParser.parse_album(a) for a in catalog.relationships.albums.data]
         elif resource.relationships and resource.relationships.albums:
             return [AppleMusicAlbumParser.parse_album(a) for a in resource.relationships.albums.data]
-        raise ValueError("Artist response included no albums")
+        raise ValueError("Artist has no albums.")
 
     @staticmethod
     def _catalog_artist(resource: AppleMusicArtist) -> AppleMusicArtist | None:
@@ -117,7 +118,7 @@ class AppleMusicPlaylistParser:
         response = AppleMusicPlaylistResponse.model_validate(data)
         resource = response.data[0]
         playlist = cls.parse_playlist(resource)
-        logger.debug(f"Found {len(playlist.tracks)} tracks in playlist")
+        logger.debug("Found %d tracks in playlist", len(playlist.tracks))
         return playlist
 
     @classmethod
@@ -125,7 +126,7 @@ class AppleMusicPlaylistParser:
         return Playlist(
             id=resource.id,
             name=resource.attributes.name,
-            artwork_url=resource.attributes.artwork.url,
+            artwork_url=resource.attributes.artwork.url if resource.attributes.artwork else None,
         )
 
 
@@ -135,7 +136,7 @@ class AppleMusicAlbumParser:
         response = AppleMusicAlbumResponse.model_validate(data)
         resource = response.data[0]
         album = cls.parse_album(resource)
-        logger.debug(f"Found {len(album.tracks)} tracks in album")
+        logger.debug("Found %d tracks in album", len(album.tracks))
         return album
 
     @classmethod
@@ -152,7 +153,7 @@ class AppleMusicAlbumParser:
             id=album_id,
             name=attributes.name,
             artist_name=attributes.artist_name,
-            artwork_url=attributes.artwork.url,
+            artwork_url=attributes.artwork.url if attributes.artwork else None,
             release_date=attributes.release_date,
             url=attributes.url,
         )
@@ -179,14 +180,29 @@ class AppleMusicAlbumParser:
 
 
 class AppleMusicPlaybackParser:
+    QUALITY_PRIORITIES: tuple[str, str] = ("28:ctrp256", "32:ctrp64")
+
     @classmethod
-    def parse(cls, data: JSON) -> Playback:
+    def parse(cls, data: JSON) -> PlaybackSong:
         response = AppleMusicPlaybackResponse.model_validate(data)
+
         if (message := cls.failure_message(response)) is not None:
             raise ValueError(message)
-        if response.song_list is None:
+        if not response.song_list:
             raise ValueError("Playback response missing songs list")
-        return Playback(songs=response.song_list)
+
+        for song in response.song_list:
+            for target_flavor in cls.QUALITY_PRIORITIES:
+                for asset in song.assets:
+                    if asset.flavor == target_flavor:
+                        return parse_hls_playlist(str(asset.url))
+
+            # direct download with no encryption
+            for asset in song.assets:
+                if asset.flavor is None:
+                    return PlaybackSong(url=str(asset.url))
+
+        raise ValueError("No suitable playback URL found")
 
     @staticmethod
     def failure_message(response: AppleMusicPlaybackResponse) -> str | None:

@@ -32,7 +32,7 @@ class AppleMusicLicenseResponse(BaseModel):
 
 
 class AppleMusicPlaybackAsset(BaseModel):
-    flavor: str
+    flavor: str | None = None
     url: HttpUrl = Field(alias="URL")
 
     model_config: ClassVar[ConfigDict] = ConfigDict(populate_by_name=True)
@@ -62,7 +62,7 @@ class AppleMusicAlbumAttributes(BaseModel):
     name: str
     artist_name: str = Field(alias="artistName")
     release_date: date | None = Field(default=None, alias="releaseDate")
-    artwork: AppleMusicArtwork
+    artwork: AppleMusicArtwork | None = None
     url: HttpUrl | None = None
 
     model_config: ClassVar[ConfigDict] = ConfigDict(populate_by_name=True)
@@ -108,7 +108,7 @@ class AppleMusicTrackAttributes(BaseModel):
     album_name: str = Field(alias="albumName")
     track_number: int = Field(alias="trackNumber")
     release_date: date | None = Field(default=None, alias="releaseDate")
-    artwork: AppleMusicArtwork
+    artwork: AppleMusicArtwork | None = None
     play_params: AppleMusicPlayParams | None = Field(default=None, alias="playParams")
     url: HttpUrl | None = None
 
@@ -185,7 +185,7 @@ class AppleMusicPlaylistTracksResponse(BaseModel):
 
 
 class AppleMusicPlaylistAttributes(BaseModel):
-    artwork: AppleMusicArtwork
+    artwork: AppleMusicArtwork | None = None
     name: str
 
 
