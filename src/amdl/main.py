@@ -18,5 +18,5 @@ def main() -> None:
         d.download(am_type, resource_id, args.directory, args.url)
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     main()

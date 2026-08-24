@@ -56,7 +56,12 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/*.py" = ["assert"]
+"tests/*.py" = [
+    "assert",
+    "import-private-name",
+    "private-member-access",
+    "too-many-public-methods",
+]
 "dev/*.py" = ["implicit-namespace-package"]
 "src/amdl/media/downloader.py" = [
     "suspicious-subprocess-import",

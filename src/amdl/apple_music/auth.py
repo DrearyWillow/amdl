@@ -122,7 +122,6 @@ class AppleMusicAuthenticator:
         js = response.text()
 
         # extract the JWT token (starts with eyJ)
-        # https://github.com/xiaohaiya/musicdl/commit/2526730caa4ebf3982d10903d91211549ec57505
         match = re.search(r'"(eyJ[A-Za-z0-9\-_]+\.eyJ[A-Za-z0-9\-_]+\.[A-Za-z0-9\-_]+)"', js)
         if not match:
             raise RuntimeError("Could not find media token in JS")

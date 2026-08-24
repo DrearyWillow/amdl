@@ -60,10 +60,10 @@ def _validate_arguments(arguments: ParsedArguments, parser: ArgumentParser) -> N
         parser.error("--logout cannot be used with a URL")
     if arguments.logout and arguments.directory is not None:
         parser.error("--logout cannot be used with --directory")
-    if arguments.url is None and not arguments.logout:
-        parser.error("a URL is required unless --logout is specified")
     if arguments.directory is not None and arguments.url is None:
         parser.error("--directory requires a URL")
+    if arguments.url is None and not arguments.logout:
+        parser.error("a URL is required unless --logout is specified")
     if arguments.save_dir and arguments.directory is None:
         parser.error("--save-dir requires --directory is specified")
 

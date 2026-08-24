@@ -62,8 +62,9 @@ class AppleMusicClient:
         return cast("JSON", response.json())
 
     def get_album(self, album_id: str) -> Album:
-        route = "me/library/albums" if is_library_album(album_id) else "catalog/us/albums"
-        params = {"include": "catalog,songs"} if is_library_album(album_id) else None
+        library = is_library_album(album_id)
+        route = "me/library/albums" if library else "catalog/us/albums"
+        params = {"include": "catalog,songs"} if library else None
         response = self.get(f"{APPLE_MUSIC_API}/{route}/{album_id}", params=params)
         return AppleMusicAlbumParser.parse(response)
 
