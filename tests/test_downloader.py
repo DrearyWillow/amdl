@@ -3,6 +3,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from pydantic import HttpUrl
+from rich.console import Console
 
 from amdl.apple_music.urls import AppleMusicType
 from amdl.domain import Album, Artist, Playlist, Track
@@ -16,13 +17,14 @@ class TestDownloader:
         client = MagicMock()
         media_downloader = MagicMock()
         drm = MagicMock()
+        console = Console()
 
         with (
             patch("amdl.downloader.AppleMusicClient", return_value=client),
             patch("amdl.downloader.MediaDownloader", return_value=media_downloader),
             patch("amdl.downloader.WidevineDRM", return_value=drm),
         ):
-            downloader = Downloader(auth)
+            downloader = Downloader(auth, console=console)
 
         return downloader, client, media_downloader, drm
 
@@ -62,13 +64,14 @@ class TestDownloader:
         client = MagicMock()
         media_downloader = MagicMock()
         drm = MagicMock()
+        console = Console()
 
         with (
             patch("amdl.downloader.AppleMusicClient", return_value=client) as client_class,
             patch("amdl.downloader.MediaDownloader", return_value=media_downloader) as media_class,
             patch("amdl.downloader.WidevineDRM", return_value=drm) as drm_class,
         ):
-            downloader = Downloader(auth, max_workers=2)
+            downloader = Downloader(auth, console=console, max_workers=2)
 
         client_class.assert_called_once_with(auth)
         media_class.assert_called_once_with(client)

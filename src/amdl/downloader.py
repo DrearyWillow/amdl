@@ -3,6 +3,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Self
 
+lazy from rich.progress import Progress
+
 from amdl.apple_music.client import AppleMusicClient
 from amdl.apple_music.urls import AppleMusicType
 from amdl.media.downloader import MediaDownloader
@@ -21,6 +23,8 @@ if TYPE_CHECKING:
     from pathlib import Path
     from types import TracebackType
 
+    from rich.console import Console
+
     from amdl.apple_music.auth import AppleMusicAuthenticator
     from amdl.domain import Album, Track
 
@@ -36,17 +40,18 @@ class TrackContext:
 
 
 class Downloader:
-    def __init__(self, auth: AppleMusicAuthenticator, *, max_workers: int = 8) -> None:
+    def __init__(self, auth: AppleMusicAuthenticator, *, console: Console, max_workers: int = 8) -> None:
         self.client: AppleMusicClient = AppleMusicClient(auth)
         self.media_downloader: MediaDownloader = MediaDownloader(self.client)
         self.drm: WidevineDRM = WidevineDRM(self.client)
         self.executor: ThreadPoolExecutor = ThreadPoolExecutor(max_workers=max_workers)
+        self.console: Console = console
 
     def __enter__(self) -> Self:
         return self
 
-    def __exit__(self, et: type[BaseException] | None, val: BaseException | None, tb: TracebackType | None) -> None:
-        self.executor.shutdown(wait=True)
+    def __exit__(self, e: type[BaseException] | None, val: BaseException | None, tb: TracebackType | None) -> None:
+        self.executor.shutdown(wait=True, cancel_futures=True)
 
     def _map_downloader(self, am_type: AppleMusicType) -> Callable[..., Iterable[TrackContext]]:
         return {
@@ -60,12 +65,16 @@ class Downloader:
         logger.info("Initiating download for %s %s", am_type.name, resource_id)
         track_contexts = self._map_downloader(am_type)(resource_id, output_dir, input_url)
         futures = [self.executor.submit(self._download_context, context) for context in track_contexts]
-        for future in as_completed(futures):
-            future.result()
+
+        with Progress(console=self.console) as progress:
+            task = progress.add_task("Downloading", total=len(futures))
+            for future in as_completed(futures):
+                future.result()
+                progress.advance(task)
 
     def _download_context(self, context: TrackContext) -> None:
         if context.output_path.exists():
-            logger.info("Skipping track %s: %s already exists", context.track.id, context.output_path)
+            logger.info('Skipping track %s: "%s" already exists', context.track.id, context.output_path)
             return
         try:
             self._download_track_audio(context.track, context.output_path)
@@ -78,7 +87,7 @@ class Downloader:
         playback = self.client.get_playback(track.id)
         key = self.drm.get_content_key(playback.kid, track.id) if playback.kid else None
         self.media_downloader.download(playback.url, output_path, playback.kid, key)
-        logger.info("Downloaded track %s to %s", track.id, output_path)
+        logger.info('Downloaded track %s to "%s"', track.id, output_path)
 
     def track(self, track_id: str, output_dir: Path, input_url: str, /) -> Iterable[TrackContext]:
         track = self.client.get_track(track_id)

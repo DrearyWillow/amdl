@@ -2,6 +2,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
+from rich.console import Console
 
 from amdl.main import main
 
@@ -14,11 +15,14 @@ class TestMain:
         args.url = "https://music.apple.com/us/album/test/123"
         args.directory = Path("downloads")
 
+        console = Console()
+
         auth = MagicMock()
         downloader = MagicMock()
         downloader.__enter__.return_value = downloader
 
         with (
+            patch("amdl.main.Console", return_value=console),
             patch("amdl.main.parse_arguments", return_value=args) as parse_arguments,
             patch("amdl.main.AppleMusicAuthenticator", return_value=auth) as authenticator,
             patch("amdl.main.parse_apple_music_url", return_value=("album", "123")) as parse_url,
@@ -26,11 +30,11 @@ class TestMain:
         ):
             main()
 
-        parse_arguments.assert_called_once_with()
+        parse_arguments.assert_called_once_with(console=console)
         authenticator.assert_called_once_with()
         auth.startup.assert_called_once_with(logout=False)
         parse_url.assert_called_once_with(args.url)
-        downloader_class.assert_called_once_with(auth)
+        downloader_class.assert_called_once_with(auth, console=console)
         downloader.download.assert_called_once_with(
             "album",
             "123",

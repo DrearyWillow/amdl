@@ -2,11 +2,16 @@ import logging
 from argparse import ArgumentParser
 from dataclasses import dataclass
 from pathlib import Path
-from typing import cast
+from typing import TYPE_CHECKING, cast
 
+from rich.highlighter import ReprHighlighter
+from rich.logging import RichHandler
 lazy import keyring
 
 from amdl.config import KEYRING_NAME
+
+if TYPE_CHECKING:
+    from rich.console import Console
 
 logger = logging.getLogger(__name__)
 
@@ -35,24 +40,26 @@ def _resolve_directory(directory: Path | None, *, save_dir: bool) -> Path:
         return Path(saved_dir).expanduser() if saved_dir else Path.cwd()
 
     if save_dir:
-        logger.info("Saving output directory `%s` for subsequent runs", directory)
+        logger.info('Saving output directory "%s" for subsequent runs', directory)
         keyring.set_password(KEYRING_NAME, "directory", str(directory))
 
     return directory
 
 
-def _configure_logging(*, debug_mode: bool) -> None:
-    reset = "\033[0m"
-    magenta = "\033[35m"
-    cyan = "\033[36m"
-    white = "\033[37m"
-
-    if not debug_mode:
-        logging.basicConfig(format="%(message)s", level=logging.INFO)
-        return
-
-    fmt = f"{cyan}%(asctime)s:%(msecs)03d{reset} {white}%(levelname)s{reset} {magenta}%(name)s{reset} %(message)s"
-    logging.basicConfig(format=fmt, level=logging.DEBUG, datefmt="%H:%M:%S")
+def _configure_logging(console: Console, *, debug_mode: bool) -> None:
+    logging.basicConfig(
+        format="%(message)s",
+        level=logging.DEBUG if debug_mode else logging.INFO,
+        handlers=[
+            RichHandler(
+                show_time=False,
+                show_level=False,
+                show_path=False,
+                console=console,
+                highlighter=ReprHighlighter(),
+            )
+        ],
+    )
 
 
 def _validate_arguments(arguments: ParsedArguments, parser: ArgumentParser) -> None:
@@ -78,7 +85,7 @@ def _create_parser() -> ArgumentParser:
     return parser
 
 
-def parse_arguments() -> Arguments:
+def parse_arguments(*, console: Console) -> Arguments:
     parser = _create_parser()
     args = parser.parse_args()
 
@@ -91,9 +98,9 @@ def parse_arguments() -> Arguments:
     )
 
     _validate_arguments(parsed, parser)
-    _configure_logging(debug_mode=parsed.debug)
+    _configure_logging(console, debug_mode=parsed.debug)
 
     directory = _resolve_directory(parsed.directory, save_dir=parsed.save_dir)
-    logger.debug("Determined output directory: %s", directory)
+    logger.debug('Determined output directory: "%s"', directory)
 
     return Arguments(parsed.url, directory, parsed.save_dir, parsed.logout, parsed.debug)

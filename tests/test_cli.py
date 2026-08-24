@@ -4,6 +4,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
+from rich.console import Console
 
 from amdl.cli import (
     Arguments,
@@ -66,26 +67,35 @@ class TestResolveDirectory:
 
 class TestConfigureLogging:
     @staticmethod
-    def test_normal_logging() -> None:
-        with patch("amdl.cli.logging.basicConfig") as basic_config:
-            _configure_logging(debug_mode=False)
+    @pytest.mark.parametrize(
+        ("debug_mode", "level"),
+        [
+            (False, logging.INFO),
+            (True, logging.DEBUG)
+        ],
+    )
+    def test_logging(*, debug_mode: bool, level: int) -> None:
+        console = Console()
 
+        with (
+            patch("amdl.cli.logging.basicConfig") as basic_config,
+            patch("amdl.cli.RichHandler") as rich_handler,
+            patch("amdl.cli.ReprHighlighter") as highlighter,
+        ):
+            _configure_logging(console, debug_mode=debug_mode)
+
+        highlighter.assert_called_once_with()
+        rich_handler.assert_called_once_with(
+            show_time=False,
+            show_level=False,
+            show_path=False,
+            console=console,
+            highlighter=highlighter.return_value,
+        )
         basic_config.assert_called_once_with(
             format="%(message)s",
-            level=logging.INFO,
-        )
-
-    @staticmethod
-    def test_debug_logging() -> None:
-        with patch("amdl.cli.logging.basicConfig") as basic_config:
-            _configure_logging(debug_mode=True)
-
-        basic_config.assert_called_once_with(
-            format="\033[36m%(asctime)s:%(msecs)03d\033[0m "
-            "\033[37m%(levelname)s\033[0m "
-            "\033[35m%(name)s\033[0m %(message)s",
-            level=logging.DEBUG,
-            datefmt="%H:%M:%S",
+            level=level,
+            handlers=[rich_handler.return_value],
         )
 
 
@@ -184,12 +194,13 @@ class TestValidateArguments:
 class TestParseArguments:
     @staticmethod
     def test_url_only() -> None:
+        console = Console()
         with (
             patch("sys.argv", ["amdl", "https://music.apple.com/us/album/foo/123"]),
             patch("amdl.cli._resolve_directory", return_value=Path("/music")),
             patch("amdl.cli._configure_logging") as configure_logging,
         ):
-            result = parse_arguments()
+            result = parse_arguments(console=console)
 
         assert result == Arguments(
             url="https://music.apple.com/us/album/foo/123",
@@ -198,27 +209,22 @@ class TestParseArguments:
             logout=False,
             debug=False,
         )
-        configure_logging.assert_called_once_with(debug_mode=False)
+        configure_logging.assert_called_once_with(console, debug_mode=False)
 
     @staticmethod
     def test_all_options(tmp_path: Path) -> None:
         url = "https://music.apple.com/us/album/foo/123"
+        console = Console()
 
         with (
             patch(
                 "sys.argv",
-                [
-                    "amdl",
-                    url,
-                    "--directory",
-                    str(tmp_path),
-                    "--save-dir",
-                    "--debug",
-                ],
+                ["amdl", url, "--directory", str(tmp_path), "--save-dir", "--debug"],
             ),
             patch("amdl.cli._configure_logging") as configure_logging,
+            patch("amdl.cli.keyring.set_password") as set_password,
         ):
-            result = parse_arguments()
+            result = parse_arguments(console=console)
 
         assert result == Arguments(
             url=url,
@@ -227,16 +233,19 @@ class TestParseArguments:
             logout=False,
             debug=True,
         )
-        configure_logging.assert_called_once_with(debug_mode=True)
+        configure_logging.assert_called_once_with(console, debug_mode=True)
+        set_password.assert_called_once_with(KEYRING_NAME, "directory", str(tmp_path))
 
     @staticmethod
     def test_logout() -> None:
+        console = Console()
+
         with (
             patch("sys.argv", ["amdl", "--logout"]),
             patch("amdl.cli._resolve_directory", return_value=Path("/music")),
             patch("amdl.cli._configure_logging"),
         ):
-            result = parse_arguments()
+            result = parse_arguments(console=console)
 
         assert result == Arguments(
             url=None,
@@ -258,22 +267,22 @@ class TestParseArguments:
         ],
     )
     def test_invalid_command_line(arguments: list[str]) -> None:
+        console = Console()
         with patch("sys.argv", ["amdl", *arguments]), pytest.raises(SystemExit):
-            parse_arguments()
+            parse_arguments(console=console)
 
     @staticmethod
     def test_directory_is_resolved(tmp_path: Path) -> None:
         url = "https://music.apple.com/us/album/foo/123"
+        console = Console()
 
         with (
-            patch(
-                "sys.argv",
-                ["amdl", url, "--directory", str(tmp_path)],
-            ),
-            patch("amdl.cli._configure_logging"),
+            patch("sys.argv", ["amdl", url, "--directory", str(tmp_path)]),
+            patch("amdl.cli._configure_logging") as configure_logging,
             patch("amdl.cli._resolve_directory", return_value=Path("/resolved")) as resolve,
         ):
-            result = parse_arguments()
+            result = parse_arguments(console=console)
 
+        configure_logging.assert_called_once_with(console, debug_mode=False)
         resolve.assert_called_once_with(tmp_path, save_dir=False)
         assert result.directory == Path("/resolved")
