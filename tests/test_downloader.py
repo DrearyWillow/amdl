@@ -90,7 +90,7 @@ class TestDownloader:
         with patch.object(downloader.executor, "shutdown") as shutdown, downloader:
             pass
 
-        shutdown.assert_called_once_with(wait=True)
+        shutdown.assert_called_once_with(wait=True, cancel_futures=True)
 
     @staticmethod
     @pytest.mark.parametrize(

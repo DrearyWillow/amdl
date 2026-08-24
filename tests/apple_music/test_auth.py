@@ -30,10 +30,6 @@ class TestAppleMusicCredentials:
 
 class TestAppleMusicAuthenticator:
     @staticmethod
-    def make_authenticator() -> AppleMusicAuthenticator:
-        return AppleMusicAuthenticator()
-
-    @staticmethod
     def test_init() -> None:
         authenticator = AppleMusicAuthenticator()
 
@@ -44,11 +40,19 @@ class TestAppleMusicAuthenticator:
         user_value = "user-token"
         media_value = "media-token"
 
-        with patch("amdl.apple_music.auth.keyring.get_password", side_effect=[user_value, media_value]) as get_password:
+        with patch(
+            "amdl.apple_music.auth.keyring.get_password",
+            side_effect=[user_value, media_value],
+        ) as get_password:
             credentials = AppleMusicAuthenticator._load_credentials()  # pyright: ignore[reportPrivateUsage]
 
-        assert credentials == AppleMusicCredentials(user_token=user_value, media_token=media_value)
+        assert credentials == AppleMusicCredentials(
+            user_token=user_value,
+            media_token=media_value,
+        )
         assert get_password.call_count == EXPECTED_CREDENTIAL_COUNT
+        get_password.assert_any_call(KEYRING_NAME, "user_token")
+        get_password.assert_any_call(KEYRING_NAME, "media_token")
 
     @staticmethod
     @pytest.mark.parametrize(
@@ -75,28 +79,36 @@ class TestAppleMusicAuthenticator:
 
     @staticmethod
     def test_save_credentials() -> None:
-        user_value = "user-token"
-        media_value = "media-token"
+        user_value, media_value = "user-token", "media-token"
         credentials = AppleMusicCredentials(user_token=user_value, media_token=media_value)
 
-        with patch("amdl.apple_music.auth.keyring.set_password") as set_password:
+        with patch(
+            "amdl.apple_music.auth.keyring.set_password",
+        ) as set_password:
             AppleMusicAuthenticator._save_credentials(credentials)  # pyright: ignore[reportPrivateUsage]
 
         assert set_password.call_count == EXPECTED_CREDENTIAL_COUNT
-        set_password.assert_any_call(KEYRING_NAME, "user_token", user_value)
-        set_password.assert_any_call(KEYRING_NAME, "media_token", media_value)
+        set_password.assert_any_call(
+            KEYRING_NAME,
+            "user_token",
+            credentials.user_token,
+        )
+        set_password.assert_any_call(
+            KEYRING_NAME,
+            "media_token",
+            credentials.media_token,
+        )
 
     @staticmethod
     def test_clear_credentials() -> None:
-        authenticator = TestAppleMusicAuthenticator.make_authenticator()
-        user_value = "user-value"
-        media_value = "media-value"
+        authenticator = AppleMusicAuthenticator()
+        user_value, media_value = "user-token", "media-token"
         authenticator.credentials = AppleMusicCredentials(user_token=user_value, media_token=media_value)
 
         with patch(
             "amdl.apple_music.auth.keyring.delete_password",
         ) as delete_password:
-            authenticator.clear_credentials()
+            authenticator._clear_credentials()  # pyright: ignore[reportPrivateUsage]
 
         assert authenticator.credentials is None
         assert delete_password.call_count == EXPECTED_CREDENTIAL_COUNT
@@ -105,26 +117,22 @@ class TestAppleMusicAuthenticator:
 
     @staticmethod
     def test_clear_credentials_ignores_missing_credentials() -> None:
-        authenticator = TestAppleMusicAuthenticator.make_authenticator()
+        authenticator = AppleMusicAuthenticator()
 
         with patch(
             "amdl.apple_music.auth.keyring.delete_password",
             side_effect=PasswordDeleteError(),
         ) as delete_password:
-            authenticator.clear_credentials()
+            authenticator._clear_credentials()  # pyright: ignore[reportPrivateUsage]
 
         assert authenticator.credentials is None
         assert delete_password.call_count == EXPECTED_CREDENTIAL_COUNT
 
     @staticmethod
     def test_login_uses_saved_credentials() -> None:
-        authenticator = TestAppleMusicAuthenticator.make_authenticator()
-        user_value = "user-value"
-        media_value = "media-value"
-        credentials = AppleMusicCredentials(
-            user_token=user_value,
-            media_token=media_value,
-        )
+        authenticator = AppleMusicAuthenticator()
+        user_value, media_value = "user-token", "media-token"
+        credentials = AppleMusicCredentials(user_token=user_value, media_token=media_value)
 
         with (
             patch.object(
@@ -132,25 +140,23 @@ class TestAppleMusicAuthenticator:
                 "_load_credentials",
                 return_value=credentials,
             ) as load_credentials,
+            patch.object(authenticator, "_clear_credentials") as clear_credentials,
             patch.object(authenticator, "_browser_login") as browser_login,
             patch.object(authenticator, "_save_credentials") as save_credentials,
         ):
-            assert authenticator.login() is True
+            authenticator.login()
 
         assert authenticator.credentials == credentials
         load_credentials.assert_called_once_with()
+        clear_credentials.assert_not_called()
         browser_login.assert_not_called()
         save_credentials.assert_not_called()
 
     @staticmethod
     def test_login_browser_login() -> None:
-        authenticator = TestAppleMusicAuthenticator.make_authenticator()
-        user_value = "user-value"
-        media_value = "media-value"
-        credentials = AppleMusicCredentials(
-            user_token=user_value,
-            media_token=media_value,
-        )
+        authenticator = AppleMusicAuthenticator()
+        user_value, media_value = "user-token", "media-token"
+        credentials = AppleMusicCredentials(user_token=user_value, media_token=media_value)
 
         with (
             patch.object(
@@ -158,15 +164,21 @@ class TestAppleMusicAuthenticator:
                 "_load_credentials",
                 return_value=None,
             ) as load_credentials,
-            patch.object(authenticator, "clear_credentials") as clear_credentials,
+            patch.object(
+                authenticator,
+                "_clear_credentials",
+            ) as clear_credentials,
             patch.object(
                 authenticator,
                 "_browser_login",
                 return_value=credentials,
             ) as browser_login,
-            patch.object(authenticator, "_save_credentials") as save_credentials,
+            patch.object(
+                authenticator,
+                "_save_credentials",
+            ) as save_credentials,
         ):
-            assert authenticator.login() is True
+            authenticator.login()
 
         assert authenticator.credentials == credentials
         load_credentials.assert_called_once_with()
@@ -176,7 +188,7 @@ class TestAppleMusicAuthenticator:
 
     @staticmethod
     def test_login_browser_login_fails() -> None:
-        authenticator = TestAppleMusicAuthenticator.make_authenticator()
+        authenticator = AppleMusicAuthenticator()
 
         with (
             patch.object(
@@ -184,82 +196,74 @@ class TestAppleMusicAuthenticator:
                 "_load_credentials",
                 return_value=None,
             ),
-            patch.object(authenticator, "clear_credentials") as clear_credentials,
+            patch.object(
+                authenticator,
+                "_clear_credentials",
+            ) as clear_credentials,
             patch.object(
                 authenticator,
                 "_browser_login",
                 return_value=None,
             ) as browser_login,
+            pytest.raises(
+                SystemExit,
+                match=r"Authentication failed\.",
+            ),
         ):
-            assert authenticator.login() is False
+            authenticator.login()
 
         assert authenticator.credentials is None
-        clear_credentials.assert_called_once_with()
-        browser_login.assert_called_once_with()
+        assert clear_credentials.call_count == EXPECTED_CREDENTIAL_COUNT
+        assert browser_login.call_count == EXPECTED_CREDENTIAL_COUNT
 
     @staticmethod
-    def test_startup() -> None:
-        authenticator = TestAppleMusicAuthenticator.make_authenticator()
+    def test_login_retries_successfully() -> None:
+        authenticator = AppleMusicAuthenticator()
 
-        with patch.object(authenticator, "login", return_value=True) as login:
-            authenticator.startup()
-
-        login.assert_called_once_with()
-
-    @staticmethod
-    def test_startup_retries_failed_login() -> None:
-        authenticator = TestAppleMusicAuthenticator.make_authenticator()
-
-        with patch.object(
-            authenticator,
-            "login",
-            side_effect=[False, True],
-        ) as login:
-            authenticator.startup()
+        with patch.object(authenticator, "_login", side_effect=[False, True]) as login:
+            authenticator.login()
 
         assert login.call_count == EXPECTED_CREDENTIAL_COUNT
 
     @staticmethod
-    def test_startup_fails_after_two_login_attempts() -> None:
-        authenticator = TestAppleMusicAuthenticator.make_authenticator()
-
-        with (
-            patch.object(authenticator, "login", return_value=False) as login,
-            pytest.raises(SystemExit) as exc_info,
-        ):
-            authenticator.startup()
-
-        assert exc_info.value.code == "Authentication failed."
-        assert login.call_count == EXPECTED_CREDENTIAL_COUNT
-
-    @staticmethod
-    def test_startup_logout() -> None:
-        authenticator = TestAppleMusicAuthenticator.make_authenticator()
-
-        with (
-            patch.object(authenticator, "clear_credentials") as clear_credentials,
-            pytest.raises(SystemExit, match="Logged out"),
-        ):
-            authenticator.startup(logout=True)
-
-        clear_credentials.assert_called_once_with()
-
-    @staticmethod
-    def test_startup_handles_login_cancelled() -> None:
-        authenticator = TestAppleMusicAuthenticator.make_authenticator()
+    def test_login_handles_login_cancelled() -> None:
+        authenticator = AppleMusicAuthenticator()
 
         with (
             patch.object(
                 authenticator,
-                "login",
+                "_load_credentials",
+                return_value=None,
+            ),
+            patch.object(
+                authenticator,
+                "_clear_credentials",
+            ) as clear_credentials,
+            patch.object(
+                authenticator,
+                "_browser_login",
                 side_effect=LoginCancelledError("Browser was closed"),
             ),
             pytest.raises(
                 SystemExit,
-                match="Login cancelled: browser was closed",
+                match=r"Login cancelled: browser was closed",
             ),
         ):
-            authenticator.startup()
+            authenticator.login()
+
+        clear_credentials.assert_called_once_with()
+
+    @staticmethod
+    def test_logout() -> None:
+        authenticator = AppleMusicAuthenticator()
+
+        with patch.object(
+            authenticator,
+            "_clear_credentials",
+        ) as clear_credentials:
+            authenticator.logout()
+
+        clear_credentials.assert_called_once_with()
 
     @staticmethod
     def test_find_user_token() -> None:
@@ -309,7 +313,9 @@ class TestAppleMusicAuthenticator:
 
         assert context.request.get.call_count == EXPECTED_CREDENTIAL_COUNT
         context.request.get.assert_any_call(APPLE_MUSIC_URL)
-        context.request.get.assert_any_call("https://music.apple.com/assets/index123.js")
+        context.request.get.assert_any_call(
+            "https://music.apple.com/assets/index123.js",
+        )
 
     @staticmethod
     def test_acquire_media_token_index_script_missing() -> None:
@@ -322,9 +328,7 @@ class TestAppleMusicAuthenticator:
         with pytest.raises(RuntimeError, match="Could not find index JS URI"):
             AppleMusicAuthenticator._acquire_media_token(context)  # pyright: ignore[reportPrivateUsage]
 
-        context.request.get.assert_called_once_with(
-            "https://music.apple.com",
-        )
+        context.request.get.assert_called_once_with(APPLE_MUSIC_URL)
 
     @staticmethod
     def test_acquire_media_token_missing_token() -> None:
@@ -338,35 +342,44 @@ class TestAppleMusicAuthenticator:
 
         context.request.get.side_effect = [main_response, js_response]
 
-        with pytest.raises(RuntimeError, match="Could not find media token in JS"):
+        with pytest.raises(
+            RuntimeError,
+            match="Could not find media token in JS",
+        ):
             AppleMusicAuthenticator._acquire_media_token(context)  # pyright: ignore[reportPrivateUsage]
 
     @staticmethod
     def test_browser_login() -> None:
-        authenticator = TestAppleMusicAuthenticator.make_authenticator()
+        authenticator = AppleMusicAuthenticator()
 
         context = MagicMock()
         page = MagicMock()
         browser = MagicMock()
         chromium = MagicMock()
         playwright = MagicMock()
-        playwright.chromium = chromium
 
+        playwright.chromium = chromium
         chromium.launch.return_value = browser
         browser.new_context.return_value = context
         context.new_page.return_value = page
 
-        user_value = "user-value"
-        media_value = "media-value"
-        credentials = AppleMusicCredentials(
-            user_token=user_value,
-            media_token=media_value,
-        )
+        user_value, media_value = "user-token", "media-token"
+        credentials = AppleMusicCredentials(user_token=user_value, media_token=media_value)
 
         with (
-            patch("amdl.apple_music.auth.sync_playwright") as sync_playwright,
-            patch.object(authenticator, "_find_user_token", return_value=user_value),
-            patch.object(authenticator, "_acquire_media_token", return_value=media_value),
+            patch(
+                "amdl.apple_music.auth.sync_playwright",
+            ) as sync_playwright,
+            patch.object(
+                authenticator,
+                "_find_user_token",
+                return_value=credentials.user_token,
+            ),
+            patch.object(
+                authenticator,
+                "_acquire_media_token",
+                return_value=credentials.media_token,
+            ),
         ):
             sync_playwright.return_value.__enter__.return_value = playwright
 
@@ -381,7 +394,7 @@ class TestAppleMusicAuthenticator:
 
     @staticmethod
     def test_browser_login_browser_closed() -> None:
-        authenticator = TestAppleMusicAuthenticator.make_authenticator()
+        authenticator = AppleMusicAuthenticator()
 
         context = MagicMock()
         page = MagicMock()
@@ -393,12 +406,21 @@ class TestAppleMusicAuthenticator:
         context.new_page.return_value = page
         page.is_closed.return_value = True
 
-        with patch("amdl.apple_music.auth.sync_playwright") as sync_playwright:
+        with patch(
+            "amdl.apple_music.auth.sync_playwright",
+        ) as sync_playwright:
             sync_playwright.return_value.__enter__.return_value = playwright
 
             with (
-                patch.object(authenticator, "_find_user_token", return_value=None),
-                pytest.raises(LoginCancelledError, match=r"Browser was closed"),
+                patch.object(
+                    authenticator,
+                    "_find_user_token",
+                    return_value=None,
+                ),
+                pytest.raises(
+                    LoginCancelledError,
+                    match=r"Browser was closed",
+                ),
             ):
                 authenticator._browser_login()  # pyright: ignore[reportPrivateUsage]
 
@@ -406,7 +428,7 @@ class TestAppleMusicAuthenticator:
 
     @staticmethod
     def test_browser_login_wait_error() -> None:
-        authenticator = TestAppleMusicAuthenticator.make_authenticator()
+        authenticator = AppleMusicAuthenticator()
 
         context = MagicMock()
         page = MagicMock()
@@ -417,16 +439,27 @@ class TestAppleMusicAuthenticator:
         browser.new_context.return_value = context
         context.new_page.return_value = page
         page.is_closed.return_value = False
-
         page.wait_for_timeout.side_effect = Exception("Browser closed")
 
-        with patch("amdl.apple_music.auth.sync_playwright") as sync_playwright:
+        with patch(
+            "amdl.apple_music.auth.sync_playwright",
+        ) as sync_playwright:
             sync_playwright.return_value.__enter__.return_value = playwright
 
             with (
-                patch.object(authenticator, "_find_user_token", return_value=None),
-                patch("amdl.apple_music.auth.PlaywrightError", Exception),
-                pytest.raises(LoginCancelledError, match=r"Browser was closed"),
+                patch.object(
+                    authenticator,
+                    "_find_user_token",
+                    return_value=None,
+                ),
+                patch(
+                    "amdl.apple_music.auth.PlaywrightError",
+                    Exception,
+                ),
+                pytest.raises(
+                    LoginCancelledError,
+                    match=r"Browser was closed",
+                ),
             ):
                 authenticator._browser_login()  # pyright: ignore[reportPrivateUsage]
 

@@ -27,24 +27,21 @@ class AppleMusicAuthenticator:
     def __init__(self) -> None:
         self.credentials: AppleMusicCredentials | None = None
 
-    def startup(self, *, logout: bool = False) -> None:
-        if logout:
-            self.clear_credentials()
-            raise SystemExit("Logged out")
+    def login(self) -> None:
         try:
-            if not self.login():
+            if not self._login():
                 logger.warning("Authentication failed. Clearing credentials and prompting login.")
-                if not self.login():
+                if not self._login():
                     raise SystemExit("Authentication failed.")
         except LoginCancelledError as e:
             raise SystemExit("Login cancelled: browser was closed") from e
 
-    def login(self) -> bool:
+    def _login(self) -> bool:
         credentials = self._load_credentials()
         if credentials is not None:
             self.credentials = credentials
             return True
-        self.clear_credentials()
+        self._clear_credentials()
 
         credentials = self._browser_login()
         if credentials is None:
@@ -55,7 +52,11 @@ class AppleMusicAuthenticator:
         logger.info("Authentication successful")
         return True
 
-    def clear_credentials(self) -> None:
+    def logout(self) -> None:
+        self._clear_credentials()
+        logger.info("Logged out")
+
+    def _clear_credentials(self) -> None:
         logger.debug("Deleting credentials from keyring")
         self.credentials = None
         for key in ("user_token", "media_token"):
