@@ -1,10 +1,10 @@
 from rich.console import Console
 from rich.theme import Theme
 
-from amdl.apple_music.auth import AppleMusicAuthenticator
-from amdl.apple_music.urls import parse_apple_music_url
 from amdl.cli import Logout, parse_arguments
-from amdl.downloader import Downloader
+lazy from amdl.apple_music.auth import AppleMusicAuthenticator
+lazy from amdl.apple_music.urls import parse_apple_music_url
+lazy from amdl.downloader import Downloader
 
 
 def main() -> None:

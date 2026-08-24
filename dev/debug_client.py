@@ -41,12 +41,8 @@ def patch_client(client: AppleMusicClient) -> AppleMusicClient:
 
 def main() -> None:
     auth = AppleMusicAuthenticator()
-
-    if not auth.login():
-        raise SystemExit("Authentication failed")
-
+    auth.login()
     patched = patch_client(AppleMusicClient(auth))
-
     logger.debug(patched.get_album(ID))
 
 
