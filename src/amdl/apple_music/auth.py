@@ -2,6 +2,7 @@ import contextlib
 import logging
 import re
 from dataclasses import dataclass
+from pathlib import Path
 lazy import subprocess
 lazy import sys
 
@@ -29,15 +30,7 @@ class AppleMusicAuthenticator:
     def __init__(self) -> None:
         self.credentials: AppleMusicCredentials | None = None
 
-    @staticmethod
-    def ensure_chromium() -> None:
-        subprocess.run(
-            [sys.executable, "-m", "playwright", "install", "chromium"],
-            check=True,
-        )
-
     def login(self) -> None:
-        self.ensure_chromium()
         try:
             if not self._login():
                 logger.warning("Authentication failed. Clearing credentials and prompting login.")
@@ -84,9 +77,20 @@ class AppleMusicAuthenticator:
         keyring.set_password(KEYRING_NAME, "user_token", credentials.user_token)
         keyring.set_password(KEYRING_NAME, "media_token", credentials.media_token)
 
+    @staticmethod
+    def ensure_chromium() -> None:
+        subprocess.run(
+            [sys.executable, "-m", "playwright", "install", "chromium"],
+            check=True,
+        )
+
     def _browser_login(self) -> AppleMusicCredentials | None:
         with sync_playwright() as playwright:
+            if not Path(playwright.chromium.executable_path).exists():
+                self.ensure_chromium()
+
             browser = playwright.chromium.launch(headless=False)
+
             try:
                 context = browser.new_context()
                 page = context.new_page()
