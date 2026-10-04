@@ -2,6 +2,8 @@ import contextlib
 import logging
 import re
 from dataclasses import dataclass
+lazy import subprocess
+lazy import sys
 
 lazy import keyring
 lazy from keyring.errors import PasswordDeleteError
@@ -27,7 +29,15 @@ class AppleMusicAuthenticator:
     def __init__(self) -> None:
         self.credentials: AppleMusicCredentials | None = None
 
+    @staticmethod
+    def ensure_chromium() -> None:
+        subprocess.run(
+            [sys.executable, "-m", "playwright", "install", "chromium"],
+            check=True,
+        )
+
     def login(self) -> None:
+        self.ensure_chromium()
         try:
             if not self._login():
                 logger.warning("Authentication failed. Clearing credentials and prompting login.")

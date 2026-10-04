@@ -1,11 +1,12 @@
 [project]
 name = "amdl"
-version = "1.0.0"
+version = "1.0.1"
 description = "download apple music meow"
 readme = "README.md"
 requires-python = ">=3.15"
 dependencies = [
     "keyring>=25.7.0",
+    "keyrings-alt>=5.0.2",
     "m3u8>=6.0.0",
     "mutagen>=1.48.1",
     "playwright>=1.62.0",
@@ -20,6 +21,10 @@ amdl = "amdl.main:main"
 
 [tool.uv]
 package = true
+
+[tool.uv.build-backend]
+module-name = "amdl"
+module-root = "src"
 
 [dependency-groups]
 dev = [
